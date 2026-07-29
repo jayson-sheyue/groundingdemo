@@ -88,11 +88,16 @@ def annotate_answer_html(text: str, supports: list[GroundedSpan], min_confidence
         if cursor < start:
             parts.append(html.escape(text[cursor:start]))
         conf = span.max_confidence
-        conf_s = f"{conf:.2f}" if conf is not None else "?"
-        weak_class = " weak" if span.weak else ""
+        if span.score_missing:
+            conf_s = "无分"
+            weak_class = " missing"
+            label = "无分"
+        else:
+            conf_s = f"{conf:.2f}" if conf is not None else "?"
+            weak_class = " weak" if span.weak else ""
+            label = "弱" if span.weak else "强"
         refs = ",".join(str(i) for i in span.chunk_indices) or "?"
         chunk = html.escape(text[start:end])
-        label = "弱" if span.weak else "强"
         parts.append(
             f'<mark class="cite{weak_class}" '
             f'title="置信度 {conf_s}（阈值 {min_confidence:.2f}）· 来源 [{refs}] · {label}">'
@@ -120,13 +125,19 @@ def result_to_view(
         suggestions = Markup(result.search_suggestions_html)
 
     support_rows = []
+    missing_count = 0
     for s in result.supports:
+        if s.score_missing:
+            missing_count += 1
         support_rows.append(
             {
                 **asdict(s),
                 "bar_pct": int(round((s.max_confidence or 0) * 100)),
             }
         )
+
+    scored_weak = max(0, len(result.weak_spans) - missing_count)
+    strong_count = max(0, len(result.supports) - len(result.weak_spans))
 
     return {
         "question": question,
@@ -138,8 +149,9 @@ def result_to_view(
         "queries": result.web_search_queries,
         "sources": result.sources,
         "supports": support_rows,
-        "weak_count": len(result.weak_spans),
-        "strong_count": max(0, len(result.supports) - len(result.weak_spans)),
+        "weak_count": scored_weak,
+        "missing_score_count": missing_count,
+        "strong_count": strong_count,
         "search_suggestions_html": suggestions,
         "verify_text": verify_text,
         "usage": result.raw_usage,

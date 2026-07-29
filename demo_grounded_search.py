@@ -52,6 +52,7 @@ class GroundedSpan:
     confidence_scores: list[float] = field(default_factory=list)
     max_confidence: Optional[float] = None
     weak: bool = False
+    score_missing: bool = False  # API returned support without confidenceScores
 
 
 @dataclass
@@ -224,8 +225,12 @@ def parse_grounding(
     for s in getattr(gm, "grounding_supports", None) or []:
         segment = getattr(s, "segment", None)
         seg_text = getattr(segment, "text", None) or ""
-        scores = [float(x) for x in (getattr(s, "confidence_scores", None) or [])]
+        raw_scores = getattr(s, "confidence_scores", None)
+        scores = [float(x) for x in (raw_scores or [])]
         max_c = max(scores) if scores else None
+        score_missing = max_c is None
+        # Missing scores ≠ known-low scores; still treat conservatively as "weak"
+        # for filtering, but UI should label them as "无分" not a fake 0.xx.
         span = GroundedSpan(
             text=seg_text,
             start_index=getattr(segment, "start_index", None),
@@ -233,7 +238,8 @@ def parse_grounding(
             chunk_indices=list(getattr(s, "grounding_chunk_indices", None) or []),
             confidence_scores=scores,
             max_confidence=max_c,
-            weak=(max_c is None) or (max_c < min_confidence),
+            weak=score_missing or (max_c < min_confidence),
+            score_missing=score_missing,
         )
         supports.append(span)
         if span.weak:

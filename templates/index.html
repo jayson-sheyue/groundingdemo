@@ -445,6 +445,8 @@
       border-radius: 0.25em;
     }
     mark.cite.weak { background: var(--warn-soft); }
+    mark.cite.missing { background: #e7e5e4; }
+    .status.missing { background: #e7e5e4; color: #57534e; }
     .cite-ref {
       font-family: "IBM Plex Mono", monospace;
       font-size: 0.72em;
@@ -725,11 +727,10 @@
         <div class="insight-grid">
           <div class="insight weak-side">
             <h4>弱置信怎么体现在这次回答？</h4>
-            <div class="big">{{ view.strong_count }} 强 / {{ view.weak_count }} 弱</div>
+            <div class="big">{{ view.strong_count }} 强 / {{ view.weak_count }} 弱{% if view.missing_score_count %} / {{ view.missing_score_count }} 无分{% endif %}</div>
             <p>
               阈值 <strong>{{ '%.2f'|format(view.min_confidence) }}</strong>：
-              绿色高亮 = 置信度 ≥ 阈值；橙色 = 低于阈值（更需人工核对）。
-              分数由 API 给出，着色规则由本页阈值决定。
+              绿色 = 有分数且 ≥ 阈值；橙色 = 有分数但 &lt; 阈值；灰色 = <strong>API 未返回 confidenceScores</strong>（不是 0 分，是没给分）。
             </p>
           </div>
           <div class="insight geo-side">
@@ -752,6 +753,7 @@
         <div class="legend">
           <span class="ok">强支撑 ≥ {{ '%.2f'|format(view.min_confidence) }}</span>
           <span class="weak">弱支撑 &lt; {{ '%.2f'|format(view.min_confidence) }}</span>
+          <span>灰色 = API 未返回分数</span>
         </div>
         <div class="answer">{{ view.answer_html }}</div>
 
@@ -793,7 +795,10 @@
         {% endif %}
 
         <h2>Grounding supports（置信度条）</h2>
-        <p class="threshold-line-note">竖着看分数条：绿条 = 强，橙条 = 弱（相对当前阈值 {{ '%.2f'|format(view.min_confidence) }}）。</p>
+        <p class="threshold-line-note">
+          有分数时：绿条 = 强，橙条 = 弱（相对阈值 {{ '%.2f'|format(view.min_confidence) }}）。
+          若显示「无分」，表示本次 <code>groundingSupports</code> <strong>没有带 confidenceScores</strong>（Vertex 上较常见），不是隐藏了数值。
+        </p>
         {% if view.supports %}
           <table class="support-table">
             <thead>
@@ -807,13 +812,24 @@
             <tbody>
               {% for s in view.supports %}
                 <tr>
-                  <td>{% if s.weak %}<span class="status ungrounded">弱</span>{% else %}<span class="status ok">强</span>{% endif %}</td>
+                  <td>
+                    {% if s.score_missing %}
+                      <span class="status missing">无分</span>
+                    {% elif s.weak %}
+                      <span class="status ungrounded">弱</span>
+                    {% else %}
+                      <span class="status ok">强</span>
+                    {% endif %}
+                  </td>
                   <td class="mono">
-                    {% if s.max_confidence is not none %}
+                    {% if s.score_missing %}
+                      未返回
+                      <div class="hint" style="margin:0.25rem 0 0">API 未提供 confidenceScores</div>
+                    {% elif s.max_confidence is not none %}
                       {{ '%.3f'|format(s.max_confidence) }}
                       <div class="bar {% if s.weak %}weak{% endif %}"><i style="width: {{ s.bar_pct }}%"></i></div>
                     {% else %}
-                      n/a
+                      未返回
                     {% endif %}
                   </td>
                   <td class="mono">{{ s.chunk_indices }}</td>
