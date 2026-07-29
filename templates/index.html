@@ -219,6 +219,23 @@
       </div>
       <p class="hint">Maps 模式适合「附近咖啡馆」「XX 路有什么餐厅」；Search 适合新闻、规格、一般事实。</p>
 
+      <div id="exclude-box" class="geo-box" style="margin-top:.85rem">
+        <h3>排除域名 exclude_domains（仅 Search · Vertex）</h3>
+        <p class="hint" style="margin-top:0">
+          写入 <code>GoogleSearch(exclude_domains=[...])</code>，检索时不使用这些域名做 grounding。
+          <strong>Vertex AI 支持</strong>；Gemini Developer API（API Key）官方标注不支持。
+          Maps 模式下此框无效。可填域名或粘贴 URL（会自动取主机名）。上限约 2000 个。
+        </p>
+        <label for="exclude_domains">黑名单（逗号分隔）</label>
+        <input
+          id="exclude_domains"
+          name="exclude_domains"
+          type="text"
+          value="{{ defaults.get('exclude_domains','') }}"
+          placeholder="例如：spam.example, low-quality.com, https://www.facebook.com/page"
+        />
+      </div>
+
       <div class="row">
         <div>
           <label for="model">模型（建议 2.5+）</label>
@@ -307,6 +324,7 @@
                 <span>sources={{ item.sources }}</span>
                 <span>queries={{ item.queries }}</span>
                 <span>geo={{ item.geo }}</span>
+                <span>exclude={{ item.get('exclude_n', 0) }}</span>
               </div>
               <button type="button" class="reuse-btn" data-question={{ item.question|tojson }}>填回问题框</button>
             </li>
@@ -339,10 +357,20 @@
             <h4>本次是否传了 latLng？</h4>
             {% if view.geo and view.geo.enabled %}
               <div class="big">已传坐标</div>
-            <p>{{ view.geo.label }}（{{ '%.4f'|format(view.geo.lat) }}, {{ '%.4f'|format(view.geo.lng) }}）。已写入 toolConfig，并注入到提示词，避免模型声称「无法获取位置」。问「附近」请优先用 Maps 模式。</p>
+              <p>{{ view.geo.label }}（{{ '%.4f'|format(view.geo.lat) }}, {{ '%.4f'|format(view.geo.lng) }}）。已写入 toolConfig，并注入到提示词，避免模型声称「无法获取位置」。问「附近」请优先用 Maps 模式。</p>
             {% else %}
               <div class="big">未传坐标</div>
               <p>请求未带 retrievalConfig.latLng。</p>
+            {% endif %}
+            {% if view.mode == 'search' %}
+              <p style="margin-top:.55rem">
+                排除域名：
+                {% if view.exclude_domains %}
+                  <span class="mono">{{ view.exclude_domains|join(', ') }}</span>
+                {% else %}
+                  （未设置）
+                {% endif %}
+              </p>
             {% endif %}
           </div>
         </div>
@@ -455,8 +483,15 @@
           if (el.value === "maps" && q && /日全食|世界杯|FIFA/i.test(q.value)) {
             q.value = "这附近有什么口碑好的咖啡馆？";
           }
+          var box = document.getElementById("exclude-box");
+          if (box) box.style.opacity = (el.value === "maps") ? "0.45" : "1";
         });
       });
+      (function () {
+        var mode = document.querySelector('input[name="mode"]:checked');
+        var box = document.getElementById("exclude-box");
+        if (box && mode) box.style.opacity = (mode.value === "maps") ? "0.45" : "1";
+      })();
 
       document.querySelectorAll("#geo-presets .chip").forEach(function (el) {
         el.addEventListener("click", function () {

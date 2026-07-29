@@ -126,6 +126,26 @@ def _parse_exclude_domains() -> list[str]:
     return [d.strip() for d in raw.split(",") if d.strip()] if raw else []
 
 
+def parse_exclude_domains_csv(raw: str) -> list[str]:
+    """Parse comma/whitespace separated domains from UI or CLI."""
+    if not raw:
+        return []
+    parts: list[str] = []
+    for chunk in raw.replace("\n", ",").split(","):
+        d = chunk.strip().lower()
+        if not d:
+            continue
+        # Allow users to paste https://example.com/path → example.com
+        if "://" in d:
+            d = d.split("://", 1)[1]
+        d = d.split("/", 1)[0].split("?", 1)[0].strip(".")
+        if d.startswith("www."):
+            d = d[4:]
+        if d and d not in parts:
+            parts.append(d)
+    return parts
+
+
 def _parse_lat_lng() -> Optional[types.LatLng]:
     raw = _env("USER_LAT_LNG")
     if not raw:
@@ -156,11 +176,14 @@ def _build_config(
     *,
     mode: GroundingMode,
     lat_lng: Optional[types.LatLng] = None,
+    exclude_domains: Optional[list[str]] = None,
 ) -> types.GenerateContentConfig:
     """Build generateContent config for modern Search or Maps grounding.
 
     lat_lng is optional context for either tool. It is NOT the same as enabling
     Google Maps grounding — Maps grounding requires tools=[googleMaps].
+
+    exclude_domains: Vertex-only for googleSearch (not Gemini Developer API).
     """
     effective = lat_lng if lat_lng is not None else _parse_lat_lng()
     tool_config = None
@@ -173,10 +196,11 @@ def _build_config(
         tools = [types.Tool(google_maps=types.GoogleMaps())]
         system = SYSTEM_MAPS
     else:
+        domains = exclude_domains if exclude_domains is not None else _parse_exclude_domains()
         tools = [
             types.Tool(
                 google_search=types.GoogleSearch(
-                    exclude_domains=_parse_exclude_domains() or None,
+                    exclude_domains=domains or None,
                     blocking_confidence=_parse_blocking_confidence(),
                 )
             )
@@ -298,9 +322,14 @@ def grounded_ask(
     mode: GroundingMode = "search",
     max_retries: int = 1,
     lat_lng: Optional[types.LatLng] = None,
+    exclude_domains: Optional[list[str]] = None,
 ) -> GroundedResult:
     effective_lat_lng = lat_lng if lat_lng is not None else _parse_lat_lng()
-    config = _build_config(mode=mode, lat_lng=effective_lat_lng)
+    config = _build_config(
+        mode=mode,
+        lat_lng=effective_lat_lng,
+        exclude_domains=exclude_domains,
+    )
     last: Optional[GroundedResult] = None
 
     base = _with_location_hint(question, effective_lat_lng)
@@ -441,6 +470,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--lat", type=float, default=None)
     parser.add_argument("--lng", type=float, default=None)
+    parser.add_argument(
+        "--exclude-domains",
+        default=_env("EXCLUDE_DOMAINS"),
+        help="Comma-separated domains to exclude (Search / Vertex only)",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
@@ -461,6 +495,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         mode=args.mode,  # type: ignore[arg-type]
         max_retries=0 if args.no_retry else 1,
         lat_lng=lat_lng,
+        exclude_domains=parse_exclude_domains_csv(args.exclude_domains or ""),
     )
 
     verify_text = None

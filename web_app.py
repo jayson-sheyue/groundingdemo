@@ -24,6 +24,7 @@ from demo_grounded_search import (
     build_client,
     grounded_ask,
     make_lat_lng,
+    parse_exclude_domains_csv,
     verify_claims,
 )
 
@@ -97,6 +98,7 @@ def result_to_view(
     verify_text: Optional[str] = None,
     elapsed_ms: Optional[int] = None,
     geo: Optional[dict[str, Any]] = None,
+    exclude_domains: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     suggestions = None
     if result.search_suggestions_html:
@@ -116,6 +118,7 @@ def result_to_view(
         "usage": result.raw_usage,
         "elapsed_ms": elapsed_ms,
         "geo": geo or {"enabled": False},
+        "exclude_domains": exclude_domains or [],
     }
 
 
@@ -163,6 +166,7 @@ def _default_form() -> dict[str, Any]:
         "lat": lat,
         "lng": lng,
         "geo_label": "",
+        "exclude_domains": _env("EXCLUDE_DOMAINS"),
     }
 
 
@@ -199,6 +203,8 @@ def ask():
     lat_raw = (request.form.get("lat") or "").strip()
     lng_raw = (request.form.get("lng") or "").strip()
     geo_label = (request.form.get("geo_label") or "").strip()
+    exclude_raw = (request.form.get("exclude_domains") or "").strip()
+    exclude_domains = parse_exclude_domains_csv(exclude_raw)
 
     defaults = {
         "model": model,
@@ -209,6 +215,7 @@ def ask():
         "lat": lat_raw,
         "lng": lng_raw,
         "geo_label": geo_label,
+        "exclude_domains": exclude_raw,
     }
 
     if not question:
@@ -244,6 +251,7 @@ def ask():
             mode=mode,
             max_retries=1 if do_retry else 0,
             lat_lng=lat_lng,
+            exclude_domains=exclude_domains if mode == "search" else None,
         )
         verify_text = None
         if do_verify and result.status == "ok" and result.sources:
@@ -260,6 +268,7 @@ def ask():
             verify_text=verify_text,
             elapsed_ms=elapsed_ms,
             geo=geo_meta,
+            exclude_domains=exclude_domains if mode == "search" else [],
         )
         push_history(
             {
@@ -275,6 +284,7 @@ def ask():
                 "has_suggestions": bool(result.search_suggestions_html),
                 "verified": bool(verify_text),
                 "geo": geo_meta.get("label") if geo_meta.get("enabled") else "无坐标",
+                "exclude_n": len(exclude_domains) if mode == "search" else 0,
                 "error": None,
             }
         )
@@ -295,6 +305,7 @@ def ask():
                 "has_suggestions": False,
                 "verified": False,
                 "geo": geo_meta.get("label") if geo_meta.get("enabled") else "无坐标",
+                "exclude_n": len(exclude_domains) if mode == "search" else 0,
                 "error": str(exc),
             }
         )

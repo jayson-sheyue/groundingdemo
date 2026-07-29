@@ -159,9 +159,10 @@ python demo_grounded_search.py "附近咖啡馆" --mode maps --lat 31.2304 --lng
 | 7 | **引用片段表** | supports 的 segment ↔ chunk 索引 | 看清「哪句靠哪条源」 | 不是正确性分数 |
 | 8 | **Google Search Suggestions** | 原样渲染 `searchEntryPoint.renderedContent` | 合规 + 用户可进 Google SERP 自查 | 仅 Search 模式；生产必须原样展示 |
 | 9 | **二次核对勾选** | 第二轮无 grounding，只根据来源判 Supported/Unsupported | 抓正文相对来源的夸大/编造 | **第二轮也会幻觉**，不能当终审 |
-| 10 | **运行记录** | 进程内保存 mode / geo / status | 便于对比「Search vs Maps」「有无坐标」 | 重启 Web 即清空 |
-| 11 | （代码内，UI 不单独开关）**System prompt** | 无来源不编造、冲突并列等 | 约束生成行为 | 提示词无法强制模型 100% 遵守 |
-| 12 | （代码内）**temperature=1.0** | 官方对 Search grounding 的建议配置 | 按官方推荐取值 | 不是「温度越低越准」 |
+| 10 | **运行记录** | 进程内保存 mode / geo / status / exclude | 便于对比实验 | 重启 Web 即清空 |
+| 11 | **排除域名（Search）** | `GoogleSearch(exclude_domains=[...])` | 降低噪声站 / 竞品站进入 grounding | **仅 Vertex**；Gemini API Key 路径不支持；Maps 模式无此参数 |
+| 12 | （代码内，UI 不单独开关）**System prompt** | 无来源不编造、冲突并列等 | 约束生成行为 | 提示词无法强制模型 100% 遵守 |
+| 13 | （代码内）**temperature=1.0** | 官方对 Search grounding 的建议配置 | 按官方推荐取值 | 不是「温度越低越准」 |
 
 ### 4.1 二次核对不能保证无幻觉
 
@@ -171,17 +172,39 @@ python demo_grounded_search.py "附近咖啡馆" --mode maps --lat 31.2304 --lng
 - 合理产品策略：对 `Unsupported` / `Partial` **降级展示或拦下**，而不是只展示第二轮的「全部 Supported」。  
 - 高风险字段需要规则校验或人工，而不是「两轮模型互审完毕」。
 
+### 4.1b 排除域名 `exclude_domains`（Vertex Search）
+
+```python
+types.Tool(
+    google_search=types.GoogleSearch(
+        exclude_domains=["spam.example", "low-quality.com"],
+    )
+)
+```
+
+| 问题 | 答案 |
+|------|------|
+| API 支持吗？ | **Vertex / 本仓库路径：支持。** SDK 写明 *not supported in Gemini API*（指 AI Studio / API Key 的 Gemini Developer API）。 |
+| 填什么？ | **域名**（如 `example.com`），不是完整文章 URL；UI 若粘贴 URL 会自动取主机名。 |
+| 上限 | 文档/SDK：默认最多约 **2000** 个域名。 |
+| Maps 能用吗？ | **不能**——这是 `googleSearch` 参数，与 Maps 工具无关。 |
+| UI / CLI | Web「排除域名」输入框；CLI `--exclude-domains a.com,b.com`；或 `.env` 的 `EXCLUDE_DOMAINS`。 |
+
+作用：减少垃圾站、论坛灌水站、不想引用的站点进入 grounding 来源，从而间接降低「被脏源带偏」的风险。  
+**不能**替代白名单私有知识库；排除后仍可能从其它网页编造。
+
 ### 4.2 推荐操作路径（与 UI 操作一致）
 
 ```text
 ① 选对模式：事实/网页 → Search；附近门店 → Maps
 ② 本地题：点「使用我的位置」或城市芯片（写入 latLng + 提示词）
-③ 勾选「缺 metadata 时重试」
-④ （可选）勾选「二次核对」
-⑤ 发送后检查：
+③ 需要时填写「排除域名」（仅 Search）
+④ 勾选「缺 metadata 时重试」
+⑤ （可选）勾选「二次核对」
+⑥ 发送后检查：
      - status 是否 ok
      - 工具卡片是否为预期的 googleSearch / googleMaps
-     - 坐标卡片是否「已传」
+     - 坐标卡片是否「已传」；Search 时排除域名是否生效展示
      - 来源能否点开、引用高亮是否合理
      - Search 时是否出现 Suggestions 条
      - 若开了核对：Unsupported 句是否需要删改
@@ -213,6 +236,7 @@ python demo_grounded_search.py "附近咖啡馆" --mode maps --lat 31.2304 --lng
 |------|------|-----|
 | Search / Maps | `grounded_ask(..., mode=)` | 顶部单选 |
 | latLng + 提示注入 | `_build_config` + `_with_location_hint` | 地理盒子 / 定位按钮 |
+| 排除域名 | `GoogleSearch(exclude_domains=...)` | 「排除域名」输入框（Search） |
 | 缺 metadata 重试 | `grounded_ask` 第二次强化提示 | 「缺 metadata 时重试」 |
 | 引用高亮 / 来源 / 片段 | `parse_grounding` + `annotate_answer_html` | 结果区各块 |
 | Search Suggestions | `search_suggestions_html` | Suggestions 盒子 |
