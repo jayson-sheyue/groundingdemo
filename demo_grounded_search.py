@@ -125,22 +125,31 @@ def _parse_blocking_confidence() -> Optional[types.PhishBlockThreshold]:
         raise RuntimeError(f"BLOCKING_CONFIDENCE must be one of: {allowed}") from exc
 
 
+def make_lat_lng(latitude: float, longitude: float) -> types.LatLng:
+    return types.LatLng(latitude=latitude, longitude=longitude)
+
+
 def _build_search_config(
     *,
     temperature: float = 1.0,
     system_instruction: str = SYSTEM_INSTRUCTION,
+    lat_lng: Optional[types.LatLng] = None,
 ) -> types.GenerateContentConfig:
-    """Official guidance: temperature 1.0 for ideal Search grounding results."""
+    """Official guidance: temperature 1.0 for ideal Search grounding results.
+
+    lat_lng: optional per-request geographic bias. If omitted, falls back to
+    USER_LAT_LNG in env; if still unset, Search runs without location bias.
+    """
     exclude = _parse_exclude_domains()
     google_search = types.GoogleSearch(
         exclude_domains=exclude or None,
         blocking_confidence=_parse_blocking_confidence(),
     )
     tool_config = None
-    lat_lng = _parse_lat_lng()
-    if lat_lng is not None:
+    effective_lat_lng = lat_lng if lat_lng is not None else _parse_lat_lng()
+    if effective_lat_lng is not None:
         tool_config = types.ToolConfig(
-            retrieval_config=types.RetrievalConfig(lat_lng=lat_lng)
+            retrieval_config=types.RetrievalConfig(lat_lng=effective_lat_lng)
         )
 
     return types.GenerateContentConfig(
@@ -258,9 +267,14 @@ def grounded_ask(
     model: str,
     min_confidence: float,
     max_retries: int = 1,
+    lat_lng: Optional[types.LatLng] = None,
 ) -> GroundedResult:
-    """Ask with Search grounding; retry once if metadata is missing."""
-    config = _build_search_config()
+    """Ask with Search grounding; retry once if metadata is missing.
+
+    min_confidence: app-side threshold for labeling weak groundingSupports.
+    lat_lng: optional per-request location bias for Search.
+    """
+    config = _build_search_config(lat_lng=lat_lng)
     last: Optional[GroundedResult] = None
 
     prompts = [question]
@@ -425,11 +439,29 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Run a second-pass claim verification without Search",
     )
     parser.add_argument(
+        "--lat",
+        type=float,
+        default=None,
+        help="Optional latitude for Search geographic bias",
+    )
+    parser.add_argument(
+        "--lng",
+        type=float,
+        default=None,
+        help="Optional longitude for Search geographic bias",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Also print machine-readable JSON summary",
     )
     args = parser.parse_args(argv)
+
+    lat_lng = None
+    if args.lat is not None or args.lng is not None:
+        if args.lat is None or args.lng is None:
+            raise SystemExit("Provide both --lat and --lng together.")
+        lat_lng = make_lat_lng(args.lat, args.lng)
 
     client = build_client()
     result = grounded_ask(
@@ -438,6 +470,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         model=args.model,
         min_confidence=args.min_confidence,
         max_retries=0 if args.no_retry else 1,
+        lat_lng=lat_lng,
     )
 
     verify_text = None

@@ -24,7 +24,6 @@
       --ok-soft: #d1fae5;
       --shadow: 0 18px 40px rgba(28, 25, 23, 0.08);
     }
-
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -36,13 +35,11 @@
         var(--paper);
       min-height: 100vh;
     }
-
     .wrap {
       width: min(980px, calc(100% - 2rem));
       margin: 0 auto;
       padding: 2.5rem 0 4rem;
     }
-
     header h1 {
       font-family: Fraunces, Georgia, serif;
       font-weight: 700;
@@ -53,7 +50,7 @@
     header p {
       margin: 0;
       color: var(--muted);
-      max-width: 42rem;
+      max-width: 44rem;
       line-height: 1.55;
     }
     header a { color: var(--accent); }
@@ -66,6 +63,46 @@
       box-shadow: var(--shadow);
       padding: 1.25rem 1.35rem;
     }
+
+    .explain-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.85rem;
+      margin-top: 1.25rem;
+    }
+    @media (max-width: 780px) {
+      .explain-grid { grid-template-columns: 1fr; }
+    }
+    .explain-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0.95rem 1rem;
+      background: linear-gradient(180deg, #fffefb, #fff);
+    }
+    .explain-card h3 {
+      margin: 0 0 0.45rem;
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.05rem;
+    }
+    .explain-card p {
+      margin: 0 0 0.45rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+    .explain-card .who {
+      display: grid;
+      gap: 0.25rem;
+      margin-top: 0.55rem;
+      font-size: 0.84rem;
+    }
+    .explain-card .who span {
+      display: block;
+      padding: 0.35rem 0.5rem;
+      border-radius: 8px;
+      background: #f5f5f4;
+    }
+    .explain-card .who strong { color: var(--ink); }
 
     label {
       display: block;
@@ -86,13 +123,89 @@
 
     .row {
       display: grid;
-      grid-template-columns: 1.4fr 0.8fr 0.8fr;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 0.85rem;
+      margin-top: 0.85rem;
+    }
+    .row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 0.85rem;
       margin-top: 0.85rem;
     }
     @media (max-width: 720px) {
-      .row { grid-template-columns: 1fr; }
+      .row, .row-3 { grid-template-columns: 1fr; }
     }
+
+    .slider-wrap input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    .slider-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .slider-meta .val {
+      font-family: "IBM Plex Mono", monospace;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .hint {
+      margin: 0.35rem 0 0;
+      font-size: 0.84rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .geo-box {
+      margin-top: 1rem;
+      border: 1px dashed #a8a29e;
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
+      background: #fafaf9;
+    }
+    .geo-box h3 {
+      margin: 0 0 0.35rem;
+      font-size: 0.95rem;
+    }
+    .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin: 0.55rem 0 0.75rem;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 0.28rem 0.7rem;
+      font: inherit;
+      font-size: 0.82rem;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .chip:hover, .chip.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .geo-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.65rem;
+    }
+    .geo-status {
+      margin-top: 0.55rem;
+      font-size: 0.86rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+    .geo-status.on { color: var(--accent); font-weight: 600; }
 
     .checks {
       display: flex;
@@ -110,8 +223,14 @@
       margin: 0;
     }
 
-    button[type="submit"] {
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.85rem;
       margin-top: 1rem;
+    }
+    button[type="submit"].run-btn {
       border: 0;
       border-radius: 999px;
       padding: 0.75rem 1.35rem;
@@ -120,8 +239,55 @@
       font: inherit;
       font-weight: 700;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 8px 18px rgba(28, 25, 23, 0.18);
     }
-    button[type="submit"]:hover { background: #292524; }
+    button[type="submit"].run-btn:hover:not(:disabled) { background: #292524; }
+    button[type="submit"].run-btn:active:not(:disabled) {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 3px 8px rgba(28, 25, 23, 0.2);
+    }
+    button[type="submit"].run-btn:disabled,
+    button[type="submit"].run-btn.is-loading {
+      cursor: wait;
+      background: #44403c;
+      box-shadow: none;
+    }
+    .spinner {
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      display: none;
+      animation: spin 0.7s linear infinite;
+    }
+    .run-btn.is-loading .spinner { display: inline-block; }
+    .run-btn.is-loading .btn-idle { display: none; }
+    .run-btn .btn-busy { display: none; }
+    .run-btn.is-loading .btn-busy { display: inline; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .run-hint { color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+    .run-hint.active { color: var(--accent); font-weight: 600; }
+    .running-box {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.9rem 1rem;
+      border-radius: 12px;
+      border: 1px solid #99f6e4;
+      background: linear-gradient(180deg, #f0fdfa, #ffffff);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .running-box.visible { display: flex; align-items: center; gap: 0.65rem; }
+    .running-box .spinner {
+      display: inline-block;
+      border-color: rgba(15, 118, 110, 0.25);
+      border-top-color: var(--accent);
+    }
 
     .error {
       margin-top: 1rem;
@@ -157,6 +323,113 @@
       font-size: 0.92rem;
     }
 
+    .insight-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin: 0.85rem 0 1rem;
+    }
+    @media (max-width: 720px) { .insight-grid { grid-template-columns: 1fr; } }
+    .insight {
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .insight.weak-side { background: #fffbeb; border-color: #fcd34d; }
+    .insight.geo-side { background: #f0fdfa; border-color: #99f6e4; }
+    .insight h4 { margin: 0 0 0.35rem; font-size: 0.92rem; }
+    .insight p { margin: 0; font-size: 0.88rem; color: var(--muted); line-height: 1.45; }
+    .insight .big {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 1.35rem;
+      color: var(--ink);
+      margin: 0.2rem 0;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .panel-head h2 {
+      margin: 0;
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.25rem;
+    }
+    .ghost-btn, .secondary-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 0.35rem 0.8rem;
+      font: inherit;
+      font-size: 0.85rem;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .ghost-btn:hover, .secondary-btn:hover { color: var(--ink); border-color: #a8a29e; }
+    .secondary-btn {
+      color: var(--accent);
+      border-color: #99f6e4;
+      background: var(--accent-soft);
+      font-weight: 600;
+    }
+
+    .history-empty { color: var(--muted); margin: 0; font-size: 0.95rem; }
+    .history-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      max-height: 320px;
+      overflow: auto;
+    }
+    .history-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.7rem 0.85rem;
+      background: #fff;
+    }
+    .history-item .top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .history-item .q { font-weight: 600; margin: 0 0 0.25rem; }
+    .history-item .preview {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .history-item .stats {
+      margin-top: 0.4rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem 0.9rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-family: "IBM Plex Mono", monospace;
+    }
+    .reuse-btn {
+      margin-top: 0.45rem;
+      border: 0;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
     h2 {
       font-family: Fraunces, Georgia, serif;
       font-size: 1.25rem;
@@ -164,26 +437,20 @@
     }
     h2:first-child { margin-top: 0.2rem; }
 
-    .answer {
-      line-height: 1.7;
-      font-size: 1.05rem;
-    }
+    .answer { line-height: 1.7; font-size: 1.05rem; }
     mark.cite {
       background: var(--accent-soft);
       color: inherit;
       padding: 0.05em 0.15em;
       border-radius: 0.25em;
     }
-    mark.cite.weak {
-      background: var(--warn-soft);
-    }
+    mark.cite.weak { background: var(--warn-soft); }
     .cite-ref {
       font-family: "IBM Plex Mono", monospace;
       font-size: 0.72em;
       color: var(--accent);
       margin-left: 0.15em;
     }
-
     .legend {
       display: flex;
       flex-wrap: wrap;
@@ -204,17 +471,13 @@
     .legend .ok::before { background: var(--accent-soft); }
     .legend .weak::before { background: var(--warn-soft); }
 
-    ul.clean {
-      margin: 0;
-      padding-left: 1.1rem;
-    }
+    ul.clean { margin: 0; padding-left: 1.1rem; }
     ul.clean li { margin: 0.35rem 0; line-height: 1.45; }
     .mono {
       font-family: "IBM Plex Mono", monospace;
       font-size: 0.86rem;
       word-break: break-all;
     }
-
     .sources a { color: var(--accent); }
 
     .suggestions-box {
@@ -242,6 +505,25 @@
       vertical-align: top;
     }
     .support-table th { color: var(--muted); font-weight: 600; }
+    .bar {
+      height: 0.55rem;
+      border-radius: 999px;
+      background: #e7e5e4;
+      overflow: hidden;
+      margin-top: 0.35rem;
+      max-width: 140px;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+    }
+    .bar.weak > i { background: var(--warn); }
+    .threshold-line-note {
+      font-size: 0.84rem;
+      color: var(--muted);
+      margin: 0.35rem 0 0.6rem;
+    }
 
     .verify {
       white-space: pre-wrap;
@@ -252,12 +534,12 @@
       font-size: 0.84rem;
       line-height: 1.5;
     }
-
     footer {
       margin-top: 1.5rem;
       color: var(--muted);
       font-size: 0.88rem;
     }
+    body.is-running { cursor: progress; }
   </style>
 </head>
 <body>
@@ -265,15 +547,32 @@
     <header>
       <h1>Grounding Demo</h1>
       <p>
-        向 Vertex 上的 Gemini 提问，并预览
-        <strong>Grounding with Google Search</strong>
-        返回的回答、来源引用，以及官方要求原样展示的
-        Search Suggestions 条。说明见
-        <a href="https://github.com/jayson-sheyue/groundingdemo/blob/main/learning_guide.md">learning_guide.md</a>。
+        预览 Gemini + Google Search grounding 的回答、引用与 Search Suggestions。
+        「弱置信」「地理偏置」说明见下方卡片与
+        <a href="https://github.com/jayson-sheyue/groundingdemo/blob/main/learning_guide.md">learning_guide.md §4.1 / §4.2</a>。
       </p>
     </header>
 
-    <form class="panel" method="post" action="/ask">
+    <div class="explain-grid">
+      <article class="explain-card">
+        <h3>弱置信（应用层阈值）</h3>
+        <p>API <strong>自动</strong>返回每段文字的 <code>confidenceScores</code>。阈值是<strong>你定的产品策略</strong>：低于它的片段标成「弱」，便于警惕，不是 Google 替你判定对错。</p>
+        <div class="who">
+          <span><strong>Google 自动给：</strong>置信度分数</span>
+          <span><strong>你要设的：</strong>阈值（默认 0.65）+ 弱句如何展示</span>
+        </div>
+      </article>
+      <article class="explain-card">
+        <h3>地理偏置（请求里传坐标）</h3>
+        <p>Search <strong>不会</strong>自动知道提问者在哪。只有请求带上 lat/lng，结果才会更偏本地（天气、门店等）。坐标应来自浏览器定位、用户设置或问题里的城市，而不是写死给所有人。</p>
+        <div class="who">
+          <span><strong>Google 自动做：</strong>按你给的坐标偏置搜索</span>
+          <span><strong>你要提供：</strong>每次/每用户的纬度经度（可留空）</span>
+        </div>
+      </article>
+    </div>
+
+    <form class="panel" id="ask-form" method="post" action="/ask">
       <label for="question">问题</label>
       <textarea id="question" name="question" required>{{ defaults.question }}</textarea>
 
@@ -283,10 +582,6 @@
           <input id="model" name="model" type="text" value="{{ defaults.model }}" />
         </div>
         <div>
-          <label for="min_confidence">弱支撑阈值</label>
-          <input id="min_confidence" name="min_confidence" type="number" min="0" max="1" step="0.01" value="{{ defaults.min_confidence }}" />
-        </div>
-        <div>
           <label>&nbsp;</label>
           <div class="checks" style="margin:0.55rem 0 0">
             <label><input type="checkbox" name="retry" value="on" {% if defaults.get('retry', true) %}checked{% endif %} /> 缺 metadata 时重试</label>
@@ -294,12 +589,118 @@
         </div>
       </div>
 
+      <div class="slider-wrap" style="margin-top:1rem">
+        <label for="min_confidence_range">弱支撑阈值（应用层）</label>
+        <input
+          id="min_confidence_range"
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value="{{ defaults.min_confidence }}"
+        />
+        <input type="hidden" id="min_confidence" name="min_confidence" value="{{ defaults.min_confidence }}" />
+        <div class="slider-meta">
+          <span>更宽松（更少标弱）</span>
+          <span class="val">阈值 = <span id="conf-val">{{ defaults.min_confidence }}</span></span>
+          <span>更严格（更多标弱）</span>
+        </div>
+        <p class="hint">
+          拖动后：回答里置信度 &lt; 该值的句子会标成橙色「弱」。分数仍来自 API；这里只决定怎么着色。
+        </p>
+      </div>
+
+      <div class="geo-box">
+        <h3>地理偏置（可选）</h3>
+        <p class="hint" style="margin-top:0">留空 = 不传 latLng，全网检索无本地偏好。适合对比：同一句「明天天气」在上海 vs 旧金山。</p>
+        <div class="preset-row" id="geo-presets">
+          {% for c in city_presets %}
+            <button
+              type="button"
+              class="chip"
+              data-lat="{{ c.lat }}"
+              data-lng="{{ c.lng }}"
+              data-label="{{ c.name }}"
+            >{{ c.name }}</button>
+          {% endfor %}
+        </div>
+        <div class="row-3">
+          <div>
+            <label for="lat">纬度</label>
+            <input id="lat" name="lat" type="text" inputmode="decimal" placeholder="例如 31.2304" value="{{ defaults.get('lat', '') }}" />
+          </div>
+          <div>
+            <label for="lng">经度</label>
+            <input id="lng" name="lng" type="text" inputmode="decimal" placeholder="例如 121.4737" value="{{ defaults.get('lng', '') }}" />
+          </div>
+          <div>
+            <label for="geo_label">标签（可选）</label>
+            <input id="geo_label" name="geo_label" type="text" placeholder="上海 / 浏览器定位" value="{{ defaults.get('geo_label', '') }}" />
+          </div>
+        </div>
+        <div class="geo-actions">
+          <button type="button" class="secondary-btn" id="btn-geo">使用我的位置</button>
+          <button type="button" class="ghost-btn" id="btn-geo-clear">清除偏置</button>
+        </div>
+        <div class="geo-status" id="geo-status">当前：{% if defaults.get('lat') and defaults.get('lng') %}已启用 {{ defaults.get('geo_label') or (defaults.lat ~ ', ' ~ defaults.lng) }}{% else %}未启用地理偏置{% endif %}</div>
+      </div>
+
       <div class="checks">
         <label><input type="checkbox" name="verify" {% if defaults.get('verify') %}checked{% endif %} /> 二次核对（另一次请求，不搜网）</label>
       </div>
 
-      <button type="submit">发送并查看 grounding 样式</button>
+      <div class="actions">
+        <button type="submit" class="run-btn" id="run-btn">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="btn-idle">发送并查看 grounding 样式</span>
+          <span class="btn-busy">检索中…</span>
+        </button>
+        <span class="run-hint" id="run-hint">点击后会立即进入加载态；Vertex 检索通常需要几秒到十几秒。</span>
+      </div>
+
+      <div class="running-box" id="running-box" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>正在调用 Gemini + Google Search grounding，请稍候…</span>
+      </div>
     </form>
+
+    <section class="panel" id="history-panel">
+      <div class="panel-head">
+        <h2>运行记录</h2>
+        {% if history %}
+        <form method="post" action="/history/clear" onsubmit="return confirm('清空全部运行记录？');">
+          <button type="submit" class="ghost-btn">清空</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if history %}
+        <ul class="history-list">
+          {% for item in history %}
+            <li class="history-item">
+              <div class="top">
+                <span class="status {{ item.status }}">{{ item.status }}</span>
+                <span class="mono">{{ item.time }}</span>
+                <span class="mono">{{ item.elapsed_ms }} ms</span>
+                <span class="mono">{{ item.model }}</span>
+              </div>
+              <p class="q">{{ item.question }}</p>
+              <p class="preview">{{ item.preview }}</p>
+              <div class="stats">
+                <span>queries={{ item.queries }}</span>
+                <span>sources={{ item.sources }}</span>
+                <span>weak={{ item.weak_count }}</span>
+                <span>阈值={{ '%.2f'|format(item.min_confidence) if item.min_confidence is not none else '?' }}</span>
+                <span>geo={{ item.geo }}</span>
+                {% if item.verified %}<span>verified</span>{% endif %}
+              </div>
+              <button type="button" class="reuse-btn" data-question={{ item.question|tojson }}>填回问题框</button>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="history-empty">还没有运行记录。发送一次提问后，这里会留下状态、耗时、弱句数、地理偏置与回答摘要。</p>
+      {% endif %}
+    </section>
 
     {% if error %}
       <div class="error">{{ error }}</div>
@@ -310,6 +711,9 @@
         <div class="meta">
           <span class="status {{ view.status }}">{{ view.status }}</span>
           <span>模型：<span class="mono">{{ view.model }}</span></span>
+          {% if view.elapsed_ms is not none %}
+            <span>耗时：<span class="mono">{{ view.elapsed_ms }} ms</span></span>
+          {% endif %}
           {% if view.usage %}
             <span>tokens：{{ view.usage.get('total_token_count') }}</span>
           {% endif %}
@@ -318,21 +722,47 @@
           {% endif %}
         </div>
 
-        <h2>回答（文内引用高亮）</h2>
+        <div class="insight-grid">
+          <div class="insight weak-side">
+            <h4>弱置信怎么体现在这次回答？</h4>
+            <div class="big">{{ view.strong_count }} 强 / {{ view.weak_count }} 弱</div>
+            <p>
+              阈值 <strong>{{ '%.2f'|format(view.min_confidence) }}</strong>：
+              绿色高亮 = 置信度 ≥ 阈值；橙色 = 低于阈值（更需人工核对）。
+              分数由 API 给出，着色规则由本页阈值决定。
+            </p>
+          </div>
+          <div class="insight geo-side">
+            <h4>地理偏置这次用了吗？</h4>
+            {% if view.geo and view.geo.enabled %}
+              <div class="big">已启用</div>
+              <p>
+                {{ view.geo.label }}
+                （{{ '%.4f'|format(view.geo.lat) }}, {{ '%.4f'|format(view.geo.lng) }}）
+                已写入请求的 <code>toolConfig.retrievalConfig.latLng</code>。
+              </p>
+            {% else %}
+              <div class="big">未启用</div>
+              <p>本次请求未传坐标，搜索无本地偏好。可在上方填城市预设或「使用我的位置」后再问天气/本地类问题对比。</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <h2>回答（文内引用 + 置信标注）</h2>
         <div class="legend">
-          <span class="ok">高置信支撑（≥ {{ view.min_confidence }}）</span>
-          <span class="weak">弱支撑 / 低置信</span>
+          <span class="ok">强支撑 ≥ {{ '%.2f'|format(view.min_confidence) }}</span>
+          <span class="weak">弱支撑 &lt; {{ '%.2f'|format(view.min_confidence) }}</span>
         </div>
         <div class="answer">{{ view.answer_html }}</div>
 
         <h2>Google Search Suggestions（须原样渲染）</h2>
         {% if view.search_suggestions_html %}
           <div class="suggestions-box">
-            <p class="note">以下 HTML/CSS 来自 API 的 <code>searchEntryPoint.renderedContent</code>，按官方要求不做样式改动。点击后应进入 Google 搜索结果页。</p>
+            <p class="note">来自 <code>searchEntryPoint.renderedContent</code>，按官方要求不改样式。</p>
             {{ view.search_suggestions_html }}
           </div>
         {% else %}
-          <p style="color:var(--muted)">本次响应未返回 Search Suggestions（常见于未真正接地）。</p>
+          <p style="color:var(--muted)">本次未返回 Search Suggestions（常见于未真正接地）。</p>
         {% endif %}
 
         <h2>模型实际搜索词</h2>
@@ -362,23 +792,26 @@
           <p style="color:var(--muted)">（无）</p>
         {% endif %}
 
-        <h2>Grounding supports 明细</h2>
+        <h2>Grounding supports（置信度条）</h2>
+        <p class="threshold-line-note">竖着看分数条：绿条 = 强，橙条 = 弱（相对当前阈值 {{ '%.2f'|format(view.min_confidence) }}）。</p>
         {% if view.supports %}
           <table class="support-table">
             <thead>
               <tr>
+                <th>判定</th>
                 <th>置信度</th>
-                <th>来源索引</th>
+                <th>来源</th>
                 <th>片段</th>
               </tr>
             </thead>
             <tbody>
               {% for s in view.supports %}
                 <tr>
+                  <td>{% if s.weak %}<span class="status ungrounded">弱</span>{% else %}<span class="status ok">强</span>{% endif %}</td>
                   <td class="mono">
                     {% if s.max_confidence is not none %}
                       {{ '%.3f'|format(s.max_confidence) }}
-                      {% if s.weak %} · WEAK{% endif %}
+                      <div class="bar {% if s.weak %}weak{% endif %}"><i style="width: {{ s.bar_pct }}%"></i></div>
                     {% else %}
                       n/a
                     {% endif %}
@@ -401,9 +834,139 @@
     {% endif %}
 
     <footer>
-      本地演示用途。生产环境请遵守 Google Grounding / Search Suggestions 展示条款。
-      完整教程见仓库中的 <code>learning_guide.md</code>。
+      本地演示。弱置信阈值与地理坐标由你在本页控制；API 负责给分与（在有坐标时）偏置搜索。
+      详见 <code>learning_guide.md</code>。运行记录在当前进程内存中。
     </footer>
   </div>
+
+  <script>
+    (function () {
+      const form = document.getElementById("ask-form");
+      const btn = document.getElementById("run-btn");
+      const hint = document.getElementById("run-hint");
+      const runningBox = document.getElementById("running-box");
+      const range = document.getElementById("min_confidence_range");
+      const hiddenConf = document.getElementById("min_confidence");
+      const confVal = document.getElementById("conf-val");
+      const lat = document.getElementById("lat");
+      const lng = document.getElementById("lng");
+      const geoLabel = document.getElementById("geo_label");
+      const geoStatus = document.getElementById("geo-status");
+
+      function setLoading(on) {
+        if (!btn) return;
+        btn.classList.toggle("is-loading", on);
+        btn.disabled = on;
+        document.body.classList.toggle("is-running", on);
+        if (hint) {
+          hint.classList.toggle("active", on);
+          hint.textContent = on
+            ? "已提交，正在等待 Vertex 返回…"
+            : "点击后会立即进入加载态；Vertex 检索通常需要几秒到十几秒。";
+        }
+        if (runningBox) runningBox.classList.toggle("visible", on);
+      }
+
+      function syncConf() {
+        if (!range || !hiddenConf || !confVal) return;
+        const v = Number(range.value).toFixed(2);
+        range.value = v;
+        hiddenConf.value = v;
+        confVal.textContent = v;
+      }
+
+      function refreshGeoStatus() {
+        if (!geoStatus) return;
+        const a = (lat && lat.value || "").trim();
+        const b = (lng && lng.value || "").trim();
+        const label = (geoLabel && geoLabel.value || "").trim();
+        if (a && b) {
+          geoStatus.classList.add("on");
+          geoStatus.textContent = "当前：已启用地理偏置 " + (label || (a + ", " + b));
+        } else {
+          geoStatus.classList.remove("on");
+          geoStatus.textContent = "当前：未启用地理偏置（请求不传 latLng）";
+        }
+      }
+
+      if (range) {
+        range.addEventListener("input", syncConf);
+        syncConf();
+      }
+
+      if (form && btn) {
+        form.addEventListener("submit", function () {
+          syncConf();
+          setLoading(true);
+        });
+      }
+
+      document.querySelectorAll("#geo-presets .chip").forEach(function (el) {
+        el.addEventListener("click", function () {
+          lat.value = el.getAttribute("data-lat") || "";
+          lng.value = el.getAttribute("data-lng") || "";
+          const name = el.getAttribute("data-label") || "";
+          geoLabel.value = (lat.value && lng.value) ? name : "";
+          document.querySelectorAll("#geo-presets .chip").forEach(function (c) {
+            c.classList.toggle("active", c === el);
+          });
+          refreshGeoStatus();
+        });
+      });
+
+      const btnGeo = document.getElementById("btn-geo");
+      if (btnGeo) {
+        btnGeo.addEventListener("click", function () {
+          if (!navigator.geolocation) {
+            geoStatus.textContent = "当前浏览器不支持 Geolocation。";
+            return;
+          }
+          geoStatus.textContent = "正在请求浏览器定位权限…";
+          navigator.geolocation.getCurrentPosition(
+            function (pos) {
+              lat.value = pos.coords.latitude.toFixed(6);
+              lng.value = pos.coords.longitude.toFixed(6);
+              geoLabel.value = "浏览器定位";
+              refreshGeoStatus();
+            },
+            function (err) {
+              geoStatus.classList.remove("on");
+              geoStatus.textContent = "定位失败：" + (err && err.message ? err.message : "用户拒绝或不可用");
+            },
+            { enableHighAccuracy: false, timeout: 10000 }
+          );
+        });
+      }
+
+      const btnClear = document.getElementById("btn-geo-clear");
+      if (btnClear) {
+        btnClear.addEventListener("click", function () {
+          lat.value = "";
+          lng.value = "";
+          geoLabel.value = "";
+          document.querySelectorAll("#geo-presets .chip").forEach(function (c) {
+            c.classList.toggle("active", (c.getAttribute("data-lat") || "") === "");
+          });
+          refreshGeoStatus();
+        });
+      }
+
+      if (lat) lat.addEventListener("input", refreshGeoStatus);
+      if (lng) lng.addEventListener("input", refreshGeoStatus);
+      refreshGeoStatus();
+
+      document.querySelectorAll(".reuse-btn").forEach(function (el) {
+        el.addEventListener("click", function () {
+          const q = el.getAttribute("data-question") || "";
+          const box = document.getElementById("question");
+          if (box) {
+            box.value = q;
+            box.focus();
+            box.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

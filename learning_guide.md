@@ -161,19 +161,19 @@ types.GoogleSearch(
 
 ### 手段 D：地理偏置（天气、本地政策、门店）
 
+把终端用户的经纬度放进 `toolConfig.retrievalConfig.latLng`，让搜索更偏本地。
+**不会自动定位**——坐标必须由你的应用在运行时提供。详见下方 **[§4.1 地理偏置详解](#41-地理偏置详解可选的-latlng)**。
+
 ```python
-config = types.GenerateContentConfig(
-    temperature=1.0,
-    tools=[types.Tool(google_search=types.GoogleSearch())],
-    tool_config=types.ToolConfig(
-        retrieval_config=types.RetrievalConfig(
-            lat_lng=types.LatLng(latitude=31.2304, longitude=121.4737),  # 上海
-        )
-    ),
+tool_config=types.ToolConfig(
+    retrieval_config=types.RetrievalConfig(
+        lat_lng=types.LatLng(latitude=31.2304, longitude=121.4737),
+    )
 )
 ```
 
-或在 `.env` 写：`USER_LAT_LNG=31.2304,121.4737`。
+CLI：`python demo_grounded_search.py "明天天气" --lat 31.2304 --lng 121.4737`
+Web：城市预设 / 手动填坐标 /「使用我的位置」。
 
 ### 手段 E：看 `webSearchQueries`，把问题改写成“好搜的问法”
 
@@ -188,17 +188,16 @@ config = types.GenerateContentConfig(
 
 ### 手段 F：用 `confidenceScores` 给句子打“可信标签”
 
-`groundingSupports` 里每个片段可带 `confidenceScores`。本仓库默认阈值 `0.65`：低于阈值标为 **WEAK**。
+API **自动**返回每段支撑的置信度；你的应用再用阈值标「弱 / 强」。
+详见下方 **[§4.2 弱置信详解](#42-弱置信详解应用层阈值不是模型开关)**。
 
 ```python
 for support in gm.grounding_supports:
     scores = support.confidence_scores or []
     max_c = max(scores) if scores else 0.0
-    if max_c < 0.65:
+    if max_c < 0.65:  # 这是你的产品策略，不是官方固定值
         print("弱支撑：", support.segment.text)
 ```
-
-产品上可以：弱句标黄、折叠，或触发二次核对。
 
 ### 手段 G：缺失 metadata 时重试 / 拒答
 
@@ -213,11 +212,11 @@ if 还是没有:
 
 ### 手段 H：第二轮“只核对、不搜索”（高风险场景）
 
-Vertex / Enterprise 文档路径下：同一请求里 **不要**把 `googleSearch` 和 function calling / RAG retrieval 混用。  
+Vertex / Enterprise 文档路径下：同一请求里 **不要**把 `googleSearch` 和 function calling / RAG retrieval 混用。
 所以核对应是**另一次** `generateContent`（本仓库 `--verify` / 网页勾选「二次核对」）：
 
-1. 第一轮：Search grounding → 得到答案 + 来源列表  
-2. 第二轮：关闭 Search，只把「断言 + 来源」交给模型，输出 Supported / Unsupported  
+1. 第一轮：Search grounding → 得到答案 + 来源列表
+2. 第二轮：关闭 Search，只把「断言 + 来源」交给模型，输出 Supported / Unsupported
 
 适合价格、法规、医疗等“说错代价大”的字段。
 
@@ -225,12 +224,126 @@ Vertex / Enterprise 文档路径下：同一请求里 **不要**把 `googleSearc
 
 官方要求（生产环境）：
 
-1. **原样渲染** `searchEntryPoint.renderedContent`（颜色、字体都不要改）  
-2. 点击后直接进入 Google 搜索结果页  
+1. **原样渲染** `searchEntryPoint.renderedContent`（颜色、字体都不要改）
+2. 点击后直接进入 Google 搜索结果页
 3. 展示 grounding supports / 来源（文内 + 汇总）
 
-用户能点开源链接核对，比你在后端再调一次模型往往更能兜住错误。  
-本仓库 `web_app.py` 就是为了让你**直观看到**这套样式。
+用户能点开源链接核对，比你在后端再调一次模型往往更能兜住错误。
+本仓库 `web_app.py` 就是为了让你**直观看到**这套样式（含弱置信着色与地理偏置状态）。
+
+---
+
+## 4.1 地理偏置详解（可选的 latLng）
+
+### 它解决什么问题？
+
+同一句「明天会下雨吗？」：
+
+- 不传坐标 → 模型可能搜到泛化结果，或偏向训练里更常见的地区
+- 传入上海坐标 → 搜索更倾向上海本地天气信息
+
+适合：天气、门店营业、本地政策、附近活动等**位置敏感**问题。
+对「2026 世界杯主办地」这类全球事实，偏置通常影响不大。
+
+### 是不是“启用参数就自动实现”？
+
+| 步骤 | 自动？ | 说明 |
+|------|--------|------|
+| 按给定 lat/lng 偏置搜索 | ✅ 你传了才会 | 官方 `retrievalConfig.latLng` |
+| 知道提问者在哪 | ❌ | Gemini / Search **不会**自动读浏览器或 IP（本 API 路径下要你自己传） |
+| 写死在 `.env` 给所有用户 | ⚠️ 仅适合本地 demo | 生产应按**每次请求 / 每个用户**提供坐标 |
+
+所以：**开发者确实无法提前预测每个提问者的位置**；正确做法是运行时采集：
+
+1. **浏览器 Geolocation**（用户授权）→ 本 Web UI 的「使用我的位置」
+2. **用户资料里保存的城市** → 服务端查出后填入请求
+3. **问题里已写地名** → 模型搜索词常已带城市；`latLng` 是额外加强，不是唯一手段
+4. **留空** → 完全合法，表示不做地理偏置
+
+### 请求长什么样？
+
+```python
+from google.genai import types
+
+config = types.GenerateContentConfig(
+    temperature=1.0,
+    tools=[types.Tool(google_search=types.GoogleSearch())],
+    tool_config=types.ToolConfig(
+        retrieval_config=types.RetrievalConfig(
+            lat_lng=types.LatLng(latitude=31.2304, longitude=121.4737),
+        )
+    ),
+)
+```
+
+本仓库：
+
+- 环境变量默认：`USER_LAT_LNG=31.2304,121.4737`（可选）
+- 每次覆盖：`grounded_ask(..., lat_lng=make_lat_lng(lat, lng))`
+- CLI：`--lat` / `--lng`
+- Web：城市芯片、手动输入、浏览器定位；结果页「地理偏置这次用了吗？」卡片会显示本次是否启用
+
+### 怎么在 UI 上验证？
+
+1. 问题填「明天天气怎么样？」
+2. 先选「不使用偏置」发送一次，看搜索词与来源
+3. 再点「上海」或「旧金山」各发一次，对比 `webSearchQueries` 与回答是否更本地
+
+官方说明见：[Grounding with Google Search – Considerations（地理位置）](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search#considerations)。
+
+---
+
+## 4.2 弱置信详解（应用层阈值，不是模型开关）
+
+### 它解决什么问题？
+
+成功 grounding 后，响应里的 `groundingSupports` 会把「回答中的某段文字」映射到「一个或多个来源」，并带上 `confidenceScores`。
+直观理解：**这段话和引用源有多“贴”**——不是法院意义上的“绝对正确”。
+
+网页本身可能错；模型也可能读偏。所以要用分数做**风险分层**：高分放心展示，低分标黄或二次核对。
+
+### 是不是“启用就自动实现”？
+
+| 步骤 | 自动？ | 说明 |
+|------|--------|------|
+| 返回 `confidenceScores` | ✅ | 成功接地时由 API 带回 |
+| 多少分叫「弱」 | ❌ | **你的产品策略**（本仓库默认 `0.65`） |
+| 弱句怎么处理 | ❌ | 标色 / 折叠 / 拒答 / 触发 verify——你写逻辑 |
+
+因此：**开发者不需要（也无法）为每个问题预先猜一个“准绳”**；通常做法是：
+
+1. 定一个默认阈值（如 0.65）
+2. 在 UI 或配置里允许调整（本 Web 页有滑块）
+3. 用真实日志看：标成弱的句子实际错了多少 → 再校准
+4. 高风险业务线用更严阈值，或弱句一律不进最终答复
+
+### 代码怎么比？
+
+```python
+min_confidence = 0.65  # 应用层，可每次请求不同
+for support in gm.grounding_supports:
+    scores = list(support.confidence_scores or [])
+    max_c = max(scores) if scores else None
+    weak = (max_c is None) or (max_c < min_confidence)
+    # weak=True → UI 橙色；False → 绿色
+```
+
+本仓库 `parse_grounding()` 已实现上述逻辑；Web 结果区会显示：
+
+- **强/弱计数**卡片
+- 回答内 **绿 / 橙高亮**（上标带 `[来源·分数]`）
+- supports 表里的 **置信度条**
+
+拖动「弱支撑阈值」滑块再发送，同一回答的强弱划分会变——这能直观说明：**分数不变，变的是你的着色策略**。
+
+### 常见误解
+
+| 误解 | 更准确 |
+|------|--------|
+| 弱 = 一定错 | 弱 = 与引用源关联偏弱或分数偏低，更值得核对 |
+| 强 = 一定对 | 强只说明支撑更足；源网页仍可能错 |
+| 阈值是 Google 规定的 | 阈值是应用选的；Google 只给分 |
+| 开了 grounding 就有弱置信过滤 | 开了才有分数；过滤/着色要你做 |
 
 ---
 
@@ -270,14 +383,16 @@ Vertex / Enterprise 文档路径下：同一请求里 **不要**把 `googleSearc
 
 ## 7. 和本仓库代码怎么对应
 
-| 学习点 | 代码位置 |
-|--------|----------|
+| 学习点 | 代码 / UI 位置 |
+|--------|----------------|
 | 建 Vertex 客户端 | `build_client()` |
-| Search + temperature + 排除域 + 地理 | `_build_search_config()` |
-| 解析 metadata / 弱支撑 | `parse_grounding()` |
+| Search + temperature + 排除域 + 地理 | `_build_search_config(lat_lng=...)` |
+| 解析 metadata / 弱支撑 | `parse_grounding()` + `min_confidence` |
 | 缺失重试 | `grounded_ask()` |
 | 第二轮核对 | `verify_claims()` / CLI `--verify` |
-| 网页展示建议条与引用 | `web_app.py` + `templates/index.html` |
+| 弱置信滑块 + 绿/橙高亮 + 分数条 | `web_app.py` + 结果区 insight 卡片 |
+| 地理偏置：预设 / 定位 / 状态卡 | Web「地理偏置」盒子 + 结果「用了吗？」 |
+| 网页展示建议条与引用 | `templates/index.html` |
 
 动手建议：
 

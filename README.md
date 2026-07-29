@@ -69,9 +69,9 @@ python web_app.py
 | System prompt | 无可靠来源不编造、冲突并列 |
 | `exclude_domains` | `.env` → `EXCLUDE_DOMAINS`（Vertex） |
 | 钓鱼/风险站屏蔽 | `.env` → `BLOCKING_CONFIDENCE`（Vertex） |
-| 地理偏置 | `.env` → `USER_LAT_LNG=lat,lng` |
+| **弱置信阈值** | API 自动给 `confidenceScores`；应用用阈值着色。Web 滑块 + 绿/橙高亮 + 分数条。详见 [learning_guide §4.2](./learning_guide.md#42-弱置信详解应用层阈值不是模型开关) |
+| **地理偏置** | 请求传 `latLng` 才生效，不会自动定位。Web：城市预设 / 浏览器定位。详见 [learning_guide §4.1](./learning_guide.md#41-地理偏置详解可选的-latlng) |
 | 校验 metadata | 缺失 → 自动重试；仍无则 `ungrounded` |
-| 置信度 | `confidenceScores` 低于阈值标 WEAK |
 | 第二轮核对 | CLI `--verify` / Web 勾选 |
 | 合规展示预览 | Web UI 渲染 `renderedContent` |
 
