@@ -58,4 +58,8 @@ groundingdemo/
 
 ## 降幻觉（新模型现实路径）
 
-选对 Search/Maps → 需要时传 latLng → 校验 grounding_metadata → 展示来源与引用 → Search 原样展示 Suggestions → 无据不编造 prompt → 高风险二次核对。
+与 Web UI **一一对应**的手段说明（能做什么 / 不能做什么）见  
+**[learning_guide.md §4](./learning_guide.md#4-ui-上的降幻觉手段必须看清能做什么不能做什么)**。
+
+摘要：选对 Search/Maps → 需要时传 latLng（并注入提示）→ 校验是否接地并重试 → 展示可点来源与引用 → Search 原样展示 Suggestions → 可选二次核对（**不能保证第二轮零幻觉**）。  
+**不做**旧版 confidenceScores 阈值。
