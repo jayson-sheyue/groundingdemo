@@ -3,545 +3,180 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Grounding Demo · Search 样式预览</title>
+  <title>Grounding Demo · Search / Maps</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --ink: #1c1917;
-      --muted: #57534e;
-      --line: #d6d3d1;
-      --paper: #faf7f2;
-      --panel: #ffffff;
-      --accent: #0f766e;
-      --accent-soft: #ccfbf1;
-      --warn: #b45309;
-      --warn-soft: #ffedd5;
-      --bad: #b91c1c;
-      --bad-soft: #fee2e2;
-      --ok: #047857;
-      --ok-soft: #d1fae5;
-      --shadow: 0 18px 40px rgba(28, 25, 23, 0.08);
+      --ink: #1c1917; --muted: #57534e; --line: #d6d3d1; --paper: #faf7f2;
+      --panel: #fff; --accent: #0f766e; --accent-soft: #ccfbf1;
+      --warn: #b45309; --warn-soft: #ffedd5; --bad: #b91c1c; --bad-soft: #fee2e2;
+      --ok: #047857; --ok-soft: #d1fae5; --shadow: 0 18px 40px rgba(28,25,23,.08);
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      color: var(--ink);
-      font-family: "Source Sans 3", system-ui, sans-serif;
+      margin: 0; color: var(--ink); font-family: "Source Sans 3", system-ui, sans-serif;
       background:
-        radial-gradient(1200px 500px at 10% -10%, #dbeafe 0%, transparent 55%),
-        radial-gradient(900px 420px at 100% 0%, #fde68a 0%, transparent 45%),
+        radial-gradient(1100px 480px at 8% -8%, #dbeafe 0%, transparent 55%),
+        radial-gradient(800px 400px at 100% 0%, #fde68a 0%, transparent 45%),
         var(--paper);
       min-height: 100vh;
     }
-    .wrap {
-      width: min(980px, calc(100% - 2rem));
-      margin: 0 auto;
-      padding: 2.5rem 0 4rem;
-    }
+    .wrap { width: min(960px, calc(100% - 2rem)); margin: 0 auto; padding: 2.4rem 0 4rem; }
     header h1 {
-      font-family: Fraunces, Georgia, serif;
-      font-weight: 700;
-      font-size: clamp(1.8rem, 4vw, 2.5rem);
-      letter-spacing: -0.02em;
-      margin: 0 0 0.4rem;
+      font-family: Fraunces, Georgia, serif; font-size: clamp(1.8rem, 4vw, 2.4rem);
+      margin: 0 0 .4rem; letter-spacing: -.02em;
     }
-    header p {
-      margin: 0;
-      color: var(--muted);
-      max-width: 44rem;
-      line-height: 1.55;
-    }
+    header p { margin: 0; color: var(--muted); max-width: 44rem; line-height: 1.55; }
     header a { color: var(--accent); }
-
     .panel {
-      margin-top: 1.5rem;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
-      padding: 1.25rem 1.35rem;
+      margin-top: 1.35rem; background: var(--panel); border: 1px solid var(--line);
+      border-radius: 18px; box-shadow: var(--shadow); padding: 1.2rem 1.3rem;
     }
-
-    .explain-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.85rem;
-      margin-top: 1.25rem;
-    }
-    @media (max-width: 780px) {
-      .explain-grid { grid-template-columns: 1fr; }
-    }
+    .explain-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-top: 1.2rem; }
+    @media (max-width: 780px) { .explain-grid { grid-template-columns: 1fr; } }
     .explain-card {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 0.95rem 1rem;
+      border: 1px solid var(--line); border-radius: 14px; padding: .9rem 1rem;
       background: linear-gradient(180deg, #fffefb, #fff);
     }
-    .explain-card h3 {
-      margin: 0 0 0.45rem;
-      font-family: Fraunces, Georgia, serif;
-      font-size: 1.05rem;
+    .explain-card h3 { margin: 0 0 .4rem; font-family: Fraunces, Georgia, serif; font-size: 1.05rem; }
+    .explain-card p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.5; }
+    .explain-card .tag {
+      display: inline-block; margin-top: .55rem; font-size: .78rem; font-weight: 700;
+      padding: .2rem .55rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
     }
-    .explain-card p {
-      margin: 0 0 0.45rem;
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.5;
+    label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .35rem; }
+    textarea, input[type=text] {
+      width: 100%; border: 1px solid var(--line); border-radius: 12px;
+      padding: .75rem .9rem; font: inherit; background: #fff;
     }
-    .explain-card .who {
-      display: grid;
-      gap: 0.25rem;
-      margin-top: 0.55rem;
-      font-size: 0.84rem;
+    textarea { min-height: 92px; resize: vertical; }
+    .mode-row { display: flex; flex-wrap: wrap; gap: .75rem; margin: .9rem 0 .3rem; }
+    .mode-row label {
+      display: inline-flex; align-items: center; gap: .4rem; margin: 0;
+      font-weight: 600; color: var(--muted); cursor: pointer;
+      border: 1px solid var(--line); border-radius: 999px; padding: .4rem .85rem; background: #fff;
     }
-    .explain-card .who span {
-      display: block;
-      padding: 0.35rem 0.5rem;
-      border-radius: 8px;
-      background: #f5f5f4;
-    }
-    .explain-card .who strong { color: var(--ink); }
-
-    label {
-      display: block;
-      font-size: 0.85rem;
-      font-weight: 600;
-      margin-bottom: 0.35rem;
-    }
-    textarea, input[type="text"], input[type="number"] {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 0.75rem 0.9rem;
-      font: inherit;
-      background: #fff;
-      color: var(--ink);
-    }
-    textarea { min-height: 96px; resize: vertical; }
-
-    .row {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: 0.85rem;
-      margin-top: 0.85rem;
-    }
-    .row-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 0.85rem;
-      margin-top: 0.85rem;
-    }
-    @media (max-width: 720px) {
-      .row, .row-3 { grid-template-columns: 1fr; }
-    }
-
-    .slider-wrap input[type="range"] {
-      width: 100%;
-      accent-color: var(--accent);
-    }
-    .slider-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-top: 0.25rem;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-    .slider-meta .val {
-      font-family: "IBM Plex Mono", monospace;
-      color: var(--accent);
-      font-weight: 600;
-    }
-    .hint {
-      margin: 0.35rem 0 0;
-      font-size: 0.84rem;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-
+    .mode-row input { accent-color: var(--accent); }
+    .row { display: grid; grid-template-columns: 1.2fr 1fr; gap: .85rem; margin-top: .85rem; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .85rem; margin-top: .75rem; }
+    @media (max-width: 720px) { .row, .row-3 { grid-template-columns: 1fr; } }
     .geo-box {
-      margin-top: 1rem;
-      border: 1px dashed #a8a29e;
-      border-radius: 14px;
-      padding: 0.9rem 1rem;
-      background: #fafaf9;
+      margin-top: 1rem; border: 1px dashed #a8a29e; border-radius: 14px;
+      padding: .9rem 1rem; background: #fafaf9;
     }
-    .geo-box h3 {
-      margin: 0 0 0.35rem;
-      font-size: 0.95rem;
-    }
-    .preset-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem;
-      margin: 0.55rem 0 0.75rem;
-    }
+    .geo-box h3 { margin: 0 0 .35rem; font-size: .95rem; }
+    .hint { margin: .35rem 0 0; font-size: .84rem; color: var(--muted); line-height: 1.45; }
+    .preset-row { display: flex; flex-wrap: wrap; gap: .45rem; margin: .55rem 0 .75rem; }
     .chip {
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 999px;
-      padding: 0.28rem 0.7rem;
-      font: inherit;
-      font-size: 0.82rem;
-      cursor: pointer;
-      color: var(--muted);
+      border: 1px solid var(--line); background: #fff; border-radius: 999px;
+      padding: .28rem .7rem; font: inherit; font-size: .82rem; cursor: pointer; color: var(--muted);
     }
-    .chip:hover, .chip.active {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: var(--accent-soft);
+    .chip:hover, .chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .geo-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .65rem; }
+    .ghost-btn, .secondary-btn {
+      border: 1px solid var(--line); background: #fff; border-radius: 999px;
+      padding: .35rem .8rem; font: inherit; font-size: .85rem; color: var(--muted); cursor: pointer;
     }
-    .geo-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-top: 0.65rem;
+    .secondary-btn { color: var(--accent); border-color: #99f6e4; background: var(--accent-soft); font-weight: 600; }
+    .checks { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0 0; color: var(--muted); }
+    .checks label { display: inline-flex; align-items: center; gap: .4rem; margin: 0; font-weight: 500; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .85rem; margin-top: 1rem; }
+    .run-btn {
+      border: 0; border-radius: 999px; padding: .75rem 1.35rem; background: var(--ink); color: #fff;
+      font: inherit; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: .55rem;
+      box-shadow: 0 8px 18px rgba(28,25,23,.18); transition: transform .12s ease, background .15s ease;
     }
-    .geo-status {
-      margin-top: 0.55rem;
-      font-size: 0.86rem;
-      color: var(--muted);
-      min-height: 1.2em;
-    }
-    .geo-status.on { color: var(--accent); font-weight: 600; }
-
-    .checks {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      margin: 1rem 0 0;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-    .checks label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-weight: 500;
-      margin: 0;
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.85rem;
-      margin-top: 1rem;
-    }
-    button[type="submit"].run-btn {
-      border: 0;
-      border-radius: 999px;
-      padding: 0.75rem 1.35rem;
-      background: var(--ink);
-      color: #fff;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.55rem;
-      transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease;
-      box-shadow: 0 8px 18px rgba(28, 25, 23, 0.18);
-    }
-    button[type="submit"].run-btn:hover:not(:disabled) { background: #292524; }
-    button[type="submit"].run-btn:active:not(:disabled) {
-      transform: translateY(1px) scale(0.98);
-      box-shadow: 0 3px 8px rgba(28, 25, 23, 0.2);
-    }
-    button[type="submit"].run-btn:disabled,
-    button[type="submit"].run-btn.is-loading {
-      cursor: wait;
-      background: #44403c;
-      box-shadow: none;
-    }
+    .run-btn:hover:not(:disabled) { background: #292524; }
+    .run-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
+    .run-btn.is-loading, .run-btn:disabled { cursor: wait; background: #44403c; box-shadow: none; }
     .spinner {
-      width: 1rem;
-      height: 1rem;
-      border: 2px solid rgba(255,255,255,0.35);
-      border-top-color: #fff;
-      border-radius: 50%;
-      display: none;
-      animation: spin 0.7s linear infinite;
+      width: 1rem; height: 1rem; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+      border-radius: 50%; display: none; animation: spin .7s linear infinite;
     }
     .run-btn.is-loading .spinner { display: inline-block; }
     .run-btn.is-loading .btn-idle { display: none; }
     .run-btn .btn-busy { display: none; }
     .run-btn.is-loading .btn-busy { display: inline; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .run-hint { color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+    .run-hint { color: var(--muted); font-size: .9rem; }
     .run-hint.active { color: var(--accent); font-weight: 600; }
     .running-box {
-      display: none;
-      margin-top: 1rem;
-      padding: 0.9rem 1rem;
-      border-radius: 12px;
-      border: 1px solid #99f6e4;
-      background: linear-gradient(180deg, #f0fdfa, #ffffff);
-      color: var(--accent);
-      font-weight: 600;
+      display: none; margin-top: 1rem; padding: .9rem 1rem; border-radius: 12px;
+      border: 1px solid #99f6e4; background: linear-gradient(180deg,#f0fdfa,#fff);
+      color: var(--accent); font-weight: 600;
     }
-    .running-box.visible { display: flex; align-items: center; gap: 0.65rem; }
+    .running-box.visible { display: flex; align-items: center; gap: .65rem; }
     .running-box .spinner {
-      display: inline-block;
-      border-color: rgba(15, 118, 110, 0.25);
-      border-top-color: var(--accent);
+      display: inline-block; border-color: rgba(15,118,110,.25); border-top-color: var(--accent);
     }
-
     .error {
-      margin-top: 1rem;
-      padding: 0.85rem 1rem;
-      border-radius: 12px;
-      background: var(--bad-soft);
-      color: var(--bad);
-      white-space: pre-wrap;
+      margin-top: 1rem; padding: .85rem 1rem; border-radius: 12px;
+      background: var(--bad-soft); color: var(--bad); white-space: pre-wrap;
     }
-
     .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.25rem 0.7rem;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
+      display: inline-flex; padding: .25rem .7rem; border-radius: 999px;
+      font-size: .8rem; font-weight: 700; text-transform: uppercase;
     }
     .status.ok { background: var(--ok-soft); color: var(--ok); }
     .status.ungrounded { background: var(--warn-soft); color: var(--warn); }
     .status.error { background: var(--bad-soft); color: var(--bad); }
-
     .meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.6rem 1rem;
-      align-items: center;
-      margin-bottom: 1rem;
-      color: var(--muted);
-      font-size: 0.92rem;
+      display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center;
+      margin-bottom: 1rem; color: var(--muted); font-size: .92rem;
     }
-
-    .insight-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-      margin: 0.85rem 0 1rem;
-    }
+    .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin: .85rem 0 1rem; }
     @media (max-width: 720px) { .insight-grid { grid-template-columns: 1fr; } }
     .insight {
-      border-radius: 12px;
-      padding: 0.75rem 0.85rem;
-      border: 1px solid var(--line);
-      background: #fff;
+      border-radius: 12px; padding: .75rem .85rem; border: 1px solid var(--line); background: #fff;
     }
-    .insight.weak-side { background: #fffbeb; border-color: #fcd34d; }
-    .insight.geo-side { background: #f0fdfa; border-color: #99f6e4; }
-    .insight h4 { margin: 0 0 0.35rem; font-size: 0.92rem; }
-    .insight p { margin: 0; font-size: 0.88rem; color: var(--muted); line-height: 1.45; }
-    .insight .big {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 1.35rem;
-      color: var(--ink);
-      margin: 0.2rem 0;
+    .insight.mode-side { background: #f0fdfa; border-color: #99f6e4; }
+    .insight.geo-side { background: #fffbeb; border-color: #fcd34d; }
+    .insight h4 { margin: 0 0 .35rem; font-size: .92rem; }
+    .insight .big { font-family: "IBM Plex Mono", monospace; font-size: 1.25rem; margin: .2rem 0; }
+    .insight p { margin: 0; font-size: .88rem; color: var(--muted); line-height: 1.45; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
+    .panel-head h2 { margin: 0; font-family: Fraunces, Georgia, serif; font-size: 1.25rem; }
+    h2 { font-family: Fraunces, Georgia, serif; font-size: 1.25rem; margin: 1.35rem 0 .65rem; }
+    .answer { line-height: 1.7; font-size: 1.05rem; }
+    mark.cite { background: var(--accent-soft); padding: .05em .15em; border-radius: .25em; }
+    .cite-ref { font-family: "IBM Plex Mono", monospace; font-size: .72em; color: var(--accent); margin-left: .15em; }
+    ul.clean { margin: 0; padding-left: 1.1rem; }
+    ul.clean li { margin: .35rem 0; line-height: 1.45; }
+    .mono { font-family: "IBM Plex Mono", monospace; font-size: .86rem; word-break: break-all; }
+    .sources a { color: var(--accent); }
+    .suggestions-box {
+      border: 1px dashed var(--line); border-radius: 14px; padding: .85rem; background: #fff; overflow-x: auto;
     }
-
-    .panel-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 0.75rem;
+    .suggestions-box .note { margin: 0 0 .75rem; font-size: .85rem; color: var(--muted); }
+    .support-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+    .support-table th, .support-table td {
+      border-bottom: 1px solid var(--line); text-align: left; padding: .55rem .35rem; vertical-align: top;
     }
-    .panel-head h2 {
-      margin: 0;
-      font-family: Fraunces, Georgia, serif;
-      font-size: 1.25rem;
+    .support-table th { color: var(--muted); }
+    .verify {
+      white-space: pre-wrap; background: #f5f5f4; border-radius: 12px; padding: .9rem 1rem;
+      font-family: "IBM Plex Mono", monospace; font-size: .84rem; line-height: 1.5;
     }
-    .ghost-btn, .secondary-btn {
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 999px;
-      padding: 0.35rem 0.8rem;
-      font: inherit;
-      font-size: 0.85rem;
-      color: var(--muted);
-      cursor: pointer;
-    }
-    .ghost-btn:hover, .secondary-btn:hover { color: var(--ink); border-color: #a8a29e; }
-    .secondary-btn {
-      color: var(--accent);
-      border-color: #99f6e4;
-      background: var(--accent-soft);
-      font-weight: 600;
-    }
-
-    .history-empty { color: var(--muted); margin: 0; font-size: 0.95rem; }
-    .history-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.65rem;
-      max-height: 320px;
-      overflow: auto;
-    }
-    .history-item {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 0.7rem 0.85rem;
-      background: #fff;
-    }
-    .history-item .top {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem 0.75rem;
-      align-items: center;
-      margin-bottom: 0.35rem;
-    }
-    .history-item .q { font-weight: 600; margin: 0 0 0.25rem; }
-    .history-item .preview {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.45;
-    }
+    .history-empty { color: var(--muted); margin: 0; }
+    .history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .65rem; max-height: 300px; overflow: auto; }
+    .history-item { border: 1px solid var(--line); border-radius: 12px; padding: .7rem .85rem; }
+    .history-item .top { display: flex; flex-wrap: wrap; gap: .45rem .75rem; align-items: center; margin-bottom: .35rem; }
+    .history-item .q { font-weight: 600; margin: 0 0 .25rem; }
+    .history-item .preview { margin: 0; color: var(--muted); font-size: .9rem; }
     .history-item .stats {
-      margin-top: 0.4rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.55rem 0.9rem;
-      color: var(--muted);
-      font-size: 0.82rem;
-      font-family: "IBM Plex Mono", monospace;
+      margin-top: .4rem; display: flex; flex-wrap: wrap; gap: .55rem .9rem;
+      color: var(--muted); font-size: .82rem; font-family: "IBM Plex Mono", monospace;
     }
     .reuse-btn {
-      margin-top: 0.45rem;
-      border: 0;
-      background: var(--accent-soft);
-      color: var(--accent);
-      border-radius: 999px;
-      padding: 0.25rem 0.7rem;
-      font: inherit;
-      font-size: 0.82rem;
-      font-weight: 600;
-      cursor: pointer;
+      margin-top: .45rem; border: 0; background: var(--accent-soft); color: var(--accent);
+      border-radius: 999px; padding: .25rem .7rem; font: inherit; font-size: .82rem; font-weight: 600; cursor: pointer;
     }
-
-    h2 {
-      font-family: Fraunces, Georgia, serif;
-      font-size: 1.25rem;
-      margin: 1.4rem 0 0.65rem;
-    }
-    h2:first-child { margin-top: 0.2rem; }
-
-    .answer { line-height: 1.7; font-size: 1.05rem; }
-    mark.cite {
-      background: var(--accent-soft);
-      color: inherit;
-      padding: 0.05em 0.15em;
-      border-radius: 0.25em;
-    }
-    mark.cite.weak { background: var(--warn-soft); }
-    mark.cite.missing { background: #e7e5e4; }
-    .status.missing { background: #e7e5e4; color: #57534e; }
-    .cite-ref {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 0.72em;
-      color: var(--accent);
-      margin-left: 0.15em;
-    }
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.8rem;
-      margin: 0.6rem 0 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-    .legend span::before {
-      content: "";
-      display: inline-block;
-      width: 0.85rem;
-      height: 0.85rem;
-      border-radius: 0.2rem;
-      margin-right: 0.35rem;
-      vertical-align: -0.1rem;
-    }
-    .legend .ok::before { background: var(--accent-soft); }
-    .legend .weak::before { background: var(--warn-soft); }
-
-    ul.clean { margin: 0; padding-left: 1.1rem; }
-    ul.clean li { margin: 0.35rem 0; line-height: 1.45; }
-    .mono {
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 0.86rem;
-      word-break: break-all;
-    }
-    .sources a { color: var(--accent); }
-
-    .suggestions-box {
-      border: 1px dashed var(--line);
-      border-radius: 14px;
-      padding: 0.85rem;
-      background: #fff;
-      overflow-x: auto;
-    }
-    .suggestions-box .note {
-      margin: 0 0 0.75rem;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .support-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.92rem;
-    }
-    .support-table th, .support-table td {
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      padding: 0.55rem 0.35rem;
-      vertical-align: top;
-    }
-    .support-table th { color: var(--muted); font-weight: 600; }
-    .bar {
-      height: 0.55rem;
-      border-radius: 999px;
-      background: #e7e5e4;
-      overflow: hidden;
-      margin-top: 0.35rem;
-      max-width: 140px;
-    }
-    .bar > i {
-      display: block;
-      height: 100%;
-      background: var(--accent);
-    }
-    .bar.weak > i { background: var(--warn); }
-    .threshold-line-note {
-      font-size: 0.84rem;
-      color: var(--muted);
-      margin: 0.35rem 0 0.6rem;
-    }
-
-    .verify {
-      white-space: pre-wrap;
-      background: #f5f5f4;
-      border-radius: 12px;
-      padding: 0.9rem 1rem;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 0.84rem;
-      line-height: 1.5;
-    }
-    footer {
-      margin-top: 1.5rem;
-      color: var(--muted);
-      font-size: 0.88rem;
-    }
+    footer { margin-top: 1.5rem; color: var(--muted); font-size: .88rem; }
     body.is-running { cursor: progress; }
+    .geo-status { margin-top: .55rem; font-size: .86rem; color: var(--muted); }
+    .geo-status.on { color: var(--accent); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -549,32 +184,28 @@
     <header>
       <h1>Grounding Demo</h1>
       <p>
-        预览 Gemini + Google Search grounding 的回答、引用与 Search Suggestions。
-        「弱置信」「地理偏置」说明见下方卡片与
-        <a href="https://github.com/jayson-sheyue/groundingdemo/blob/main/learning_guide.md">learning_guide.md §4.1 / §4.2</a>。
+        面向 <strong>Gemini 2.5+</strong>：演示 Google Search / Google Maps grounding、
+        引用来源与 Search Suggestions。不含旧版 <code>confidenceScores</code>。
+        说明见 <a href="https://github.com/jayson-sheyue/groundingdemo/blob/main/learning_guide.md">learning_guide.md</a>。
       </p>
     </header>
 
     <div class="explain-grid">
       <article class="explain-card">
-        <h3>弱置信分数（新模型基本可忽略）</h3>
+        <h3>Search 地理偏置 ≠ Maps grounding</h3>
         <p>
-          官方规定：<strong>Gemini 2.5 及之后 <code>confidenceScores</code> 为空，应忽略</strong>。
-          客户用新模型时，阈值滑块<strong>没有数字可比</strong>，不能当主降幻觉手段。
-          仍有价值的是：来源引用、Search Suggestions、二次核对。
+          本页的 lat/lng 是 <code>toolConfig.retrievalConfig.latLng</code>：给 Search 或 Maps
+          <strong>附加位置上下文</strong>。它<strong>不是</strong>「Grounding with Google Maps」。
         </p>
-        <div class="who">
-          <span><strong>≤2.0：</strong>通常有 0~1 分，阈值才有用</span>
-          <span><strong>≥2.5（主流）：</strong>无分；靠引用与核对，不靠阈值</span>
-        </div>
+        <span class="tag">坐标 = 上下文，不是工具本身</span>
       </article>
       <article class="explain-card">
-        <h3>地理偏置（请求里传坐标）</h3>
-        <p>Search <strong>不会</strong>自动知道提问者在哪。只有请求带上 lat/lng，结果才会更偏本地（天气、门店等）。坐标应来自浏览器定位、用户设置或问题里的城市，而不是写死给所有人。</p>
-        <div class="who">
-          <span><strong>Google 自动做：</strong>按你给的坐标偏置搜索</span>
-          <span><strong>你要提供：</strong>每次/每用户的纬度经度（可留空）</span>
-        </div>
+        <h3>Grounding with Google Maps</h3>
+        <p>
+          要用地图商户 / 地点数据，须启用工具 <code>googleMaps</code>（下方选 Maps 模式）。
+          数据源是 Maps，不是公开网页搜索。官方文档见 learning_guide §Maps。
+        </p>
+        <span class="tag">工具 = googleMaps</span>
       </article>
     </div>
 
@@ -582,100 +213,80 @@
       <label for="question">问题</label>
       <textarea id="question" name="question" required>{{ defaults.question }}</textarea>
 
+      <div class="mode-row">
+        <label><input type="radio" name="mode" value="search" {% if defaults.mode != 'maps' %}checked{% endif %} /> Search grounding（网页）</label>
+        <label><input type="radio" name="mode" value="maps" {% if defaults.mode == 'maps' %}checked{% endif %} /> Maps grounding（地点）</label>
+      </div>
+      <p class="hint">Maps 模式适合「附近咖啡馆」「XX 路有什么餐厅」；Search 适合新闻、规格、一般事实。</p>
+
       <div class="row">
         <div>
-          <label for="model">模型</label>
+          <label for="model">模型（建议 2.5+）</label>
           <input id="model" name="model" type="text" value="{{ defaults.model }}" />
         </div>
         <div>
           <label>&nbsp;</label>
-          <div class="checks" style="margin:0.55rem 0 0">
+          <div class="checks" style="margin:.55rem 0 0">
             <label><input type="checkbox" name="retry" value="on" {% if defaults.get('retry', true) %}checked{% endif %} /> 缺 metadata 时重试</label>
           </div>
         </div>
       </div>
 
-      <div class="slider-wrap" style="margin-top:1rem">
-        <label for="min_confidence_range">弱支撑阈值（仅旧代有分时有效）</label>
-        <input
-          id="min_confidence_range"
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          value="{{ defaults.min_confidence }}"
-        />
-        <input type="hidden" id="min_confidence" name="min_confidence" value="{{ defaults.min_confidence }}" />
-        <div class="slider-meta">
-          <span>更宽松</span>
-          <span class="val">阈值 = <span id="conf-val">{{ defaults.min_confidence }}</span></span>
-          <span>更严格</span>
-        </div>
-        <p class="hint">
-          Gemini 2.5+ 官方不返回 <code>confidenceScores</code>，拖动此滑块通常<strong>不会改变</strong>强弱判定（全是「无分」）。
-          保留控件仅便于对照旧文档 / 旧模型；客户方案请勿依赖此项。
-        </p>
-      </div>
-
       <div class="geo-box">
-        <h3>地理偏置（可选）</h3>
-        <p class="hint" style="margin-top:0">留空 = 不传 latLng，全网检索无本地偏好。适合对比：同一句「明天天气」在上海 vs 旧金山。</p>
+        <h3>位置上下文 latLng（可选，两种模式都能用）</h3>
+        <p class="hint" style="margin-top:0">
+          留空 = 不传坐标。Maps 问「附近」时强烈建议传；Search 问天气/本地政策时也可传。
+          这与切换「Maps grounding」是两件不同的事。
+        </p>
         <div class="preset-row" id="geo-presets">
           {% for c in city_presets %}
-            <button
-              type="button"
-              class="chip"
-              data-lat="{{ c.lat }}"
-              data-lng="{{ c.lng }}"
-              data-label="{{ c.name }}"
-            >{{ c.name }}</button>
+            <button type="button" class="chip" data-lat="{{ c.lat }}" data-lng="{{ c.lng }}" data-label="{{ c.name }}">{{ c.name }}</button>
           {% endfor %}
         </div>
         <div class="row-3">
           <div>
             <label for="lat">纬度</label>
-            <input id="lat" name="lat" type="text" inputmode="decimal" placeholder="例如 31.2304" value="{{ defaults.get('lat', '') }}" />
+            <input id="lat" name="lat" type="text" value="{{ defaults.get('lat','') }}" placeholder="31.2304" />
           </div>
           <div>
             <label for="lng">经度</label>
-            <input id="lng" name="lng" type="text" inputmode="decimal" placeholder="例如 121.4737" value="{{ defaults.get('lng', '') }}" />
+            <input id="lng" name="lng" type="text" value="{{ defaults.get('lng','') }}" placeholder="121.4737" />
           </div>
           <div>
-            <label for="geo_label">标签（可选）</label>
-            <input id="geo_label" name="geo_label" type="text" placeholder="上海 / 浏览器定位" value="{{ defaults.get('geo_label', '') }}" />
+            <label for="geo_label">标签</label>
+            <input id="geo_label" name="geo_label" type="text" value="{{ defaults.get('geo_label','') }}" placeholder="上海 / 浏览器定位" />
           </div>
         </div>
         <div class="geo-actions">
           <button type="button" class="secondary-btn" id="btn-geo">使用我的位置</button>
-          <button type="button" class="ghost-btn" id="btn-geo-clear">清除偏置</button>
+          <button type="button" class="ghost-btn" id="btn-geo-clear">清除坐标</button>
         </div>
-        <div class="geo-status" id="geo-status">当前：{% if defaults.get('lat') and defaults.get('lng') %}已启用 {{ defaults.get('geo_label') or (defaults.lat ~ ', ' ~ defaults.lng) }}{% else %}未启用地理偏置{% endif %}</div>
+        <div class="geo-status" id="geo-status"></div>
       </div>
 
       <div class="checks">
-        <label><input type="checkbox" name="verify" {% if defaults.get('verify') %}checked{% endif %} /> 二次核对（另一次请求，不搜网）</label>
+        <label><input type="checkbox" name="verify" {% if defaults.get('verify') %}checked{% endif %} /> 二次核对（另一次请求，不调用 grounding 工具）</label>
       </div>
 
       <div class="actions">
         <button type="submit" class="run-btn" id="run-btn">
           <span class="spinner" aria-hidden="true"></span>
-          <span class="btn-idle">发送并查看 grounding 样式</span>
+          <span class="btn-idle">发送</span>
           <span class="btn-busy">检索中…</span>
         </button>
-        <span class="run-hint" id="run-hint">点击后会立即进入加载态；Vertex 检索通常需要几秒到十几秒。</span>
+        <span class="run-hint" id="run-hint">点击后立即进入加载态。</span>
       </div>
-
       <div class="running-box" id="running-box" role="status" aria-live="polite">
-        <span class="spinner" aria-hidden="true"></span>
-        <span>正在调用 Gemini + Google Search grounding，请稍候…</span>
+        <span class="spinner"></span>
+        <span>正在调用 Gemini grounding…</span>
       </div>
     </form>
 
-    <section class="panel" id="history-panel">
+    <section class="panel">
       <div class="panel-head">
         <h2>运行记录</h2>
         {% if history %}
-        <form method="post" action="/history/clear" onsubmit="return confirm('清空全部运行记录？');">
+        <form method="post" action="/history/clear" onsubmit="return confirm('清空？');">
           <button type="submit" class="ghost-btn">清空</button>
         </form>
         {% endif %}
@@ -687,115 +298,84 @@
               <div class="top">
                 <span class="status {{ item.status }}">{{ item.status }}</span>
                 <span class="mono">{{ item.time }}</span>
+                <span class="mono">{{ item.mode }}</span>
                 <span class="mono">{{ item.elapsed_ms }} ms</span>
-                <span class="mono">{{ item.model }}</span>
               </div>
               <p class="q">{{ item.question }}</p>
               <p class="preview">{{ item.preview }}</p>
               <div class="stats">
-                <span>queries={{ item.queries }}</span>
                 <span>sources={{ item.sources }}</span>
-                <span>weak={{ item.weak_count }}</span>
-                <span>阈值={{ '%.2f'|format(item.min_confidence) if item.min_confidence is not none else '?' }}</span>
+                <span>queries={{ item.queries }}</span>
                 <span>geo={{ item.geo }}</span>
-                {% if item.verified %}<span>verified</span>{% endif %}
               </div>
               <button type="button" class="reuse-btn" data-question={{ item.question|tojson }}>填回问题框</button>
             </li>
           {% endfor %}
         </ul>
       {% else %}
-        <p class="history-empty">还没有运行记录。发送一次提问后，这里会留下状态、耗时、弱句数、地理偏置与回答摘要。</p>
+        <p class="history-empty">暂无记录。发送一次提问后会出现在这里。</p>
       {% endif %}
     </section>
 
-    {% if error %}
-      <div class="error">{{ error }}</div>
-    {% endif %}
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
     {% if view %}
       <section class="panel">
         <div class="meta">
           <span class="status {{ view.status }}">{{ view.status }}</span>
+          <span>模式：<span class="mono">{{ view.mode }}</span></span>
           <span>模型：<span class="mono">{{ view.model }}</span></span>
-          {% if view.elapsed_ms is not none %}
-            <span>耗时：<span class="mono">{{ view.elapsed_ms }} ms</span></span>
-          {% endif %}
-          {% if view.usage %}
-            <span>tokens：{{ view.usage.get('total_token_count') }}</span>
-          {% endif %}
-          {% if view.warning %}
-            <span>提示：{{ view.warning }}</span>
-          {% endif %}
+          {% if view.elapsed_ms is not none %}<span>耗时：<span class="mono">{{ view.elapsed_ms }} ms</span></span>{% endif %}
+          {% if view.warning %}<span>{{ view.warning }}</span>{% endif %}
         </div>
 
         <div class="insight-grid">
-          <div class="insight weak-side">
-            <h4>弱置信怎么体现在这次回答？</h4>
-            <div class="big">{{ view.strong_count }} 强 / {{ view.weak_count }} 弱{% if view.missing_score_count %} / {{ view.missing_score_count }} 无分{% endif %}</div>
-            <p>
-              {% if view.missing_score_count and view.missing_score_count == (view.strong_count + view.weak_count + view.missing_score_count) %}
-                本次全部为「无分」：符合 <strong>Gemini 2.5+ 官方行为</strong>（confidenceScores 为空应忽略）。
-                降幻觉请看下方<strong>来源列表 / 引用 / 二次核对</strong>，不要依赖阈值。
-              {% else %}
-                阈值 <strong>{{ '%.2f'|format(view.min_confidence) }}</strong>：
-                绿 = 有分且 ≥ 阈值；橙 = 有分但 &lt; 阈值；灰 = API 未返回分数。
-              {% endif %}
-            </p>
+          <div class="insight mode-side">
+            <h4>本次 grounding 工具</h4>
+            <div class="big">{{ 'googleMaps' if view.mode == 'maps' else 'googleSearch' }}</div>
+            <p>{% if view.mode == 'maps' %}依据 Google Maps 地点数据。{% else %}依据公开网页搜索。{% endif %}</p>
           </div>
           <div class="insight geo-side">
-            <h4>地理偏置这次用了吗？</h4>
+            <h4>本次是否传了 latLng？</h4>
             {% if view.geo and view.geo.enabled %}
-              <div class="big">已启用</div>
-              <p>
-                {{ view.geo.label }}
-                （{{ '%.4f'|format(view.geo.lat) }}, {{ '%.4f'|format(view.geo.lng) }}）
-                已写入请求的 <code>toolConfig.retrievalConfig.latLng</code>。
-              </p>
+              <div class="big">已传坐标</div>
+              <p>{{ view.geo.label }}（{{ '%.4f'|format(view.geo.lat) }}, {{ '%.4f'|format(view.geo.lng) }}）— 这是位置上下文，不是单独的 Maps 工具开关。</p>
             {% else %}
-              <div class="big">未启用</div>
-              <p>本次请求未传坐标，搜索无本地偏好。可在上方填城市预设或「使用我的位置」后再问天气/本地类问题对比。</p>
+              <div class="big">未传坐标</div>
+              <p>请求未带 retrievalConfig.latLng。</p>
             {% endif %}
           </div>
         </div>
 
-        <h2>回答（文内引用 + 置信标注）</h2>
-        <div class="legend">
-          <span class="ok">强支撑 ≥ {{ '%.2f'|format(view.min_confidence) }}</span>
-          <span class="weak">弱支撑 &lt; {{ '%.2f'|format(view.min_confidence) }}</span>
-          <span>灰色 = API 未返回分数</span>
-        </div>
+        <h2>回答（引用来源高亮）</h2>
         <div class="answer">{{ view.answer_html }}</div>
 
-        <h2>Google Search Suggestions（须原样渲染）</h2>
+        {% if view.mode == 'search' %}
+        <h2>Google Search Suggestions</h2>
         {% if view.search_suggestions_html %}
           <div class="suggestions-box">
-            <p class="note">来自 <code>searchEntryPoint.renderedContent</code>，按官方要求不改样式。</p>
+            <p class="note">原样渲染 <code>searchEntryPoint.renderedContent</code>（合规要求）。</p>
             {{ view.search_suggestions_html }}
           </div>
         {% else %}
-          <p style="color:var(--muted)">本次未返回 Search Suggestions（常见于未真正接地）。</p>
+          <p style="color:var(--muted)">本次无 Search Suggestions（未接地时常见）。</p>
+        {% endif %}
         {% endif %}
 
-        <h2>模型实际搜索词</h2>
+        <h2>检索词</h2>
         {% if view.queries %}
-          <ul class="clean">
-            {% for q in view.queries %}
-              <li class="mono">{{ q }}</li>
-            {% endfor %}
-          </ul>
+          <ul class="clean">{% for q in view.queries %}<li class="mono">{{ q }}</li>{% endfor %}</ul>
         {% else %}
-          <p style="color:var(--muted)">（无）</p>
+          <p style="color:var(--muted)">（无 / Maps 模式可能不填 webSearchQueries）</p>
         {% endif %}
 
-        <h2>来源列表</h2>
+        <h2>来源</h2>
         {% if view.sources %}
           <ul class="clean sources">
             {% for s in view.sources %}
               <li>
-                <strong>[{{ s.index }}]</strong>
+                <strong>[{{ s.index }}]</strong> <span class="mono">({{ s.kind }})</span>
                 {{ s.title or '(no title)' }}
-                {% if s.domain %}<span class="mono">({{ s.domain }})</span>{% endif %}
                 {% if s.uri %}<br /><a href="{{ s.uri }}" target="_blank" rel="noopener noreferrer">{{ s.uri }}</a>{% endif %}
               </li>
             {% endfor %}
@@ -804,44 +384,14 @@
           <p style="color:var(--muted)">（无）</p>
         {% endif %}
 
-        <h2>Grounding supports（置信度条）</h2>
-        <p class="threshold-line-note">
-          有分数时：绿条 = 强，橙条 = 弱（相对阈值 {{ '%.2f'|format(view.min_confidence) }}）。
-          若显示「无分」，表示本次 <code>groundingSupports</code> <strong>没有带 confidenceScores</strong>（Vertex 上较常见），不是隐藏了数值。
-        </p>
+        <h2>引用片段（groundingSupports）</h2>
+        <p class="hint">2.5+ 通常无 confidenceScores；这里只展示「哪段话 ↔ 哪些来源」。</p>
         {% if view.supports %}
           <table class="support-table">
-            <thead>
-              <tr>
-                <th>判定</th>
-                <th>置信度</th>
-                <th>来源</th>
-                <th>片段</th>
-              </tr>
-            </thead>
+            <thead><tr><th>来源索引</th><th>片段</th></tr></thead>
             <tbody>
               {% for s in view.supports %}
                 <tr>
-                  <td>
-                    {% if s.score_missing %}
-                      <span class="status missing">无分</span>
-                    {% elif s.weak %}
-                      <span class="status ungrounded">弱</span>
-                    {% else %}
-                      <span class="status ok">强</span>
-                    {% endif %}
-                  </td>
-                  <td class="mono">
-                    {% if s.score_missing %}
-                      未返回
-                      <div class="hint" style="margin:0.25rem 0 0">API 未提供 confidenceScores</div>
-                    {% elif s.max_confidence is not none %}
-                      {{ '%.3f'|format(s.max_confidence) }}
-                      <div class="bar {% if s.weak %}weak{% endif %}"><i style="width: {{ s.bar_pct }}%"></i></div>
-                    {% else %}
-                      未返回
-                    {% endif %}
-                  </td>
                   <td class="mono">{{ s.chunk_indices }}</td>
                   <td>{{ s.text }}</td>
                 </tr>
@@ -853,15 +403,14 @@
         {% endif %}
 
         {% if view.verify_text %}
-          <h2>二次核对结果</h2>
+          <h2>二次核对</h2>
           <div class="verify">{{ view.verify_text }}</div>
         {% endif %}
       </section>
     {% endif %}
 
     <footer>
-      本地演示。地理偏置仍按请求传坐标；数值置信度在 Gemini 2.5+ 上官方为空，请以引用来源与二次核对为准。
-      详见 <code>learning_guide.md</code> §4.1 / §4.2。运行记录在当前进程内存中。
+      本 demo 仅覆盖现代 grounding：Search / Maps + 可选 latLng 上下文。旧版数值置信度已移除。
     </footer>
   </div>
 
@@ -871,61 +420,43 @@
       const btn = document.getElementById("run-btn");
       const hint = document.getElementById("run-hint");
       const runningBox = document.getElementById("running-box");
-      const range = document.getElementById("min_confidence_range");
-      const hiddenConf = document.getElementById("min_confidence");
-      const confVal = document.getElementById("conf-val");
       const lat = document.getElementById("lat");
       const lng = document.getElementById("lng");
       const geoLabel = document.getElementById("geo_label");
       const geoStatus = document.getElementById("geo-status");
+      const q = document.getElementById("question");
 
       function setLoading(on) {
-        if (!btn) return;
         btn.classList.toggle("is-loading", on);
         btn.disabled = on;
         document.body.classList.toggle("is-running", on);
-        if (hint) {
-          hint.classList.toggle("active", on);
-          hint.textContent = on
-            ? "已提交，正在等待 Vertex 返回…"
-            : "点击后会立即进入加载态；Vertex 检索通常需要几秒到十几秒。";
-        }
-        if (runningBox) runningBox.classList.toggle("visible", on);
-      }
-
-      function syncConf() {
-        if (!range || !hiddenConf || !confVal) return;
-        const v = Number(range.value).toFixed(2);
-        range.value = v;
-        hiddenConf.value = v;
-        confVal.textContent = v;
+        hint.classList.toggle("active", on);
+        hint.textContent = on ? "已提交，等待 Vertex…" : "点击后立即进入加载态。";
+        runningBox.classList.toggle("visible", on);
       }
 
       function refreshGeoStatus() {
-        if (!geoStatus) return;
-        const a = (lat && lat.value || "").trim();
-        const b = (lng && lng.value || "").trim();
-        const label = (geoLabel && geoLabel.value || "").trim();
+        const a = (lat.value || "").trim();
+        const b = (lng.value || "").trim();
+        const label = (geoLabel.value || "").trim();
         if (a && b) {
           geoStatus.classList.add("on");
-          geoStatus.textContent = "当前：已启用地理偏置 " + (label || (a + ", " + b));
+          geoStatus.textContent = "当前：已传坐标 " + (label || (a + ", " + b));
         } else {
           geoStatus.classList.remove("on");
-          geoStatus.textContent = "当前：未启用地理偏置（请求不传 latLng）";
+          geoStatus.textContent = "当前：未传 latLng 上下文";
         }
       }
 
-      if (range) {
-        range.addEventListener("input", syncConf);
-        syncConf();
-      }
+      form.addEventListener("submit", function () { setLoading(true); });
 
-      if (form && btn) {
-        form.addEventListener("submit", function () {
-          syncConf();
-          setLoading(true);
+      document.querySelectorAll('input[name="mode"]').forEach(function (el) {
+        el.addEventListener("change", function () {
+          if (el.value === "maps" && q && /日全食|世界杯|FIFA/i.test(q.value)) {
+            q.value = "这附近有什么口碑好的咖啡馆？";
+          }
         });
-      }
+      });
 
       document.querySelectorAll("#geo-presets .chip").forEach(function (el) {
         el.addEventListener("click", function () {
@@ -940,56 +471,40 @@
         });
       });
 
-      const btnGeo = document.getElementById("btn-geo");
-      if (btnGeo) {
-        btnGeo.addEventListener("click", function () {
-          if (!navigator.geolocation) {
-            geoStatus.textContent = "当前浏览器不支持 Geolocation。";
-            return;
-          }
-          geoStatus.textContent = "正在请求浏览器定位权限…";
-          navigator.geolocation.getCurrentPosition(
-            function (pos) {
-              lat.value = pos.coords.latitude.toFixed(6);
-              lng.value = pos.coords.longitude.toFixed(6);
-              geoLabel.value = "浏览器定位";
-              refreshGeoStatus();
-            },
-            function (err) {
-              geoStatus.classList.remove("on");
-              geoStatus.textContent = "定位失败：" + (err && err.message ? err.message : "用户拒绝或不可用");
-            },
-            { enableHighAccuracy: false, timeout: 10000 }
-          );
-        });
-      }
+      document.getElementById("btn-geo").addEventListener("click", function () {
+        if (!navigator.geolocation) {
+          geoStatus.textContent = "浏览器不支持定位。";
+          return;
+        }
+        geoStatus.textContent = "请求定位权限…";
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            lat.value = pos.coords.latitude.toFixed(6);
+            lng.value = pos.coords.longitude.toFixed(6);
+            geoLabel.value = "浏览器定位";
+            refreshGeoStatus();
+          },
+          function (err) {
+            geoStatus.classList.remove("on");
+            geoStatus.textContent = "定位失败：" + (err.message || "不可用");
+          },
+          { timeout: 10000 }
+        );
+      });
 
-      const btnClear = document.getElementById("btn-geo-clear");
-      if (btnClear) {
-        btnClear.addEventListener("click", function () {
-          lat.value = "";
-          lng.value = "";
-          geoLabel.value = "";
-          document.querySelectorAll("#geo-presets .chip").forEach(function (c) {
-            c.classList.toggle("active", (c.getAttribute("data-lat") || "") === "");
-          });
-          refreshGeoStatus();
-        });
-      }
+      document.getElementById("btn-geo-clear").addEventListener("click", function () {
+        lat.value = ""; lng.value = ""; geoLabel.value = "";
+        refreshGeoStatus();
+      });
 
-      if (lat) lat.addEventListener("input", refreshGeoStatus);
-      if (lng) lng.addEventListener("input", refreshGeoStatus);
+      lat.addEventListener("input", refreshGeoStatus);
+      lng.addEventListener("input", refreshGeoStatus);
       refreshGeoStatus();
 
       document.querySelectorAll(".reuse-btn").forEach(function (el) {
         el.addEventListener("click", function () {
-          const q = el.getAttribute("data-question") || "";
-          const box = document.getElementById("question");
-          if (box) {
-            box.value = q;
-            box.focus();
-            box.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
+          q.value = el.getAttribute("data-question") || "";
+          q.focus();
         });
       });
     })();
