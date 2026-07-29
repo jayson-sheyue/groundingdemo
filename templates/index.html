@@ -265,7 +265,7 @@
       </div>
 
       <div class="checks">
-        <label><input type="checkbox" name="verify" {% if defaults.get('verify') %}checked{% endif %} /> 二次核对（另一次请求，不调用 grounding 工具）</label>
+        <label><input type="checkbox" name="verify" {% if defaults.get('verify') %}checked{% endif %} /> 二次核对（另一次请求：不搜网，只根据本轮来源判定 Supported/Unsupported）</label>
       </div>
 
       <div class="actions">
@@ -339,7 +339,7 @@
             <h4>本次是否传了 latLng？</h4>
             {% if view.geo and view.geo.enabled %}
               <div class="big">已传坐标</div>
-              <p>{{ view.geo.label }}（{{ '%.4f'|format(view.geo.lat) }}, {{ '%.4f'|format(view.geo.lng) }}）— 这是位置上下文，不是单独的 Maps 工具开关。</p>
+            <p>{{ view.geo.label }}（{{ '%.4f'|format(view.geo.lat) }}, {{ '%.4f'|format(view.geo.lng) }}）。已写入 toolConfig，并注入到提示词，避免模型声称「无法获取位置」。问「附近」请优先用 Maps 模式。</p>
             {% else %}
               <div class="big">未传坐标</div>
               <p>请求未带 retrievalConfig.latLng。</p>

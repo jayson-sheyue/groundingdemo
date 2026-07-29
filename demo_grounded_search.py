@@ -37,14 +37,35 @@ SYSTEM_SEARCH = """你是注重事实准确性的助手。必须遵守：
 2. 关键数字、日期、人名、金额找不到来源就说「未找到可靠来源」，禁止用训练记忆补全。
 3. 多来源冲突时并列呈现，不要装作只有一种答案。
 4. 区分事实与推断；推断须标明。
+5. 若用户消息中提供了「终端用户位置（lat,lng）」，必须把它当作「这附近 / 本地」的参考位置，
+   不要声称无法获取地理位置；搜索与回答应围绕该坐标附近展开。
 """
 
 SYSTEM_MAPS = """你是本地生活助手。必须遵守：
 1. 优先依据本次 Google Maps 检索到的地点 / 商户 / 地理信息作答。
 2. 涉及营业时间、地址、评分等，以 Maps 结果为准；找不到就明确说未找到。
 3. 不要编造不存在的门店或电话。
+4. 若用户消息中提供了「终端用户位置（lat,lng）」，必须当作「这附近」的坐标，
+   不要声称无法获取地理位置。
 """
 
+
+def _with_location_hint(question: str, lat_lng: Optional[types.LatLng]) -> str:
+    """latLng in toolConfig biases retrieval; models often do NOT see it as chat context.
+
+    Inject an explicit hint so '附近' questions don't get a false 'I have no location' reply.
+    """
+    if lat_lng is None:
+        return question
+    lat = getattr(lat_lng, "latitude", None)
+    lng = getattr(lat_lng, "longitude", None)
+    if lat is None or lng is None:
+        return question
+    return (
+        f"{question}\n\n"
+        f"[终端用户位置] latitude={lat}, longitude={lng}。"
+        "请将「这附近 / 本地 / near me」解释为该坐标附近，不要说无法获取地理位置。"
+    )
 VERIFY_INSTRUCTION = """你是事实核对员。只能根据给定的「模型断言」与「来源列表」判断。
 对每条断言输出一行 JSON（不要 markdown）：
 {"claim":"...","verdict":"Supported|Unsupported|Partial","reason":"..."}
@@ -278,14 +299,16 @@ def grounded_ask(
     max_retries: int = 1,
     lat_lng: Optional[types.LatLng] = None,
 ) -> GroundedResult:
-    config = _build_config(mode=mode, lat_lng=lat_lng)
+    effective_lat_lng = lat_lng if lat_lng is not None else _parse_lat_lng()
+    config = _build_config(mode=mode, lat_lng=effective_lat_lng)
     last: Optional[GroundedResult] = None
 
-    prompts = [question]
+    base = _with_location_hint(question, effective_lat_lng)
+    prompts = [base]
     if max_retries > 0:
         tool_name = "Google Maps" if mode == "maps" else "Google 搜索"
         prompts.append(
-            question
+            base
             + f"\n\n[系统补强] 请务必使用 {tool_name} 工具检索后再回答；"
             "若无法检索到可靠信息，请明确说明未找到，不要猜测。"
         )
