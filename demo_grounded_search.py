@@ -248,6 +248,19 @@ def parse_grounding(
     entry = getattr(gm, "search_entry_point", None)
     suggestions = getattr(entry, "rendered_content", None) if entry else None
 
+    missing_n = sum(1 for s in supports if s.score_missing)
+    scored_weak_n = sum(1 for s in weak if not s.score_missing)
+    warn_parts: list[str] = []
+    if missing_n:
+        warn_parts.append(
+            f"{missing_n}/{len(supports)} groundingSupports 未返回 confidenceScores"
+            "（有来源映射，无数值置信度）"
+        )
+    if scored_weak_n:
+        warn_parts.append(
+            f"{scored_weak_n} span(s) below min_confidence={min_confidence}"
+        )
+
     return GroundedResult(
         status="ok",
         text=text,
@@ -257,11 +270,7 @@ def parse_grounding(
         supports=supports,
         weak_spans=weak,
         search_suggestions_html=suggestions,
-        warning=(
-            f"{len(weak)} span(s) below min_confidence={min_confidence}"
-            if weak
-            else None
-        ),
+        warning="; ".join(warn_parts) if warn_parts else None,
         raw_usage=usage,
     )
 

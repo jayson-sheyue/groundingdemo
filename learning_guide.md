@@ -101,7 +101,7 @@ print(response.text)
 |------|------------------|------------|
 | `webSearchQueries` | 模型实际发给 Google 的搜索词 | 调试：搜偏了就改问题 / 改写查询 |
 | `groundingChunks` | 用到的网页来源（标题、域名、URI） | 展示引用列表；做域名白/黑名单 |
-| `groundingSupports` | **哪一段回答文字**对应**哪些来源**，以及置信度 | 文内引用；过滤弱支撑句 |
+| `groundingSupports` | **哪一段回答文字**对应**哪些来源**（2.5+ 通常无 confidenceScores） | 文内引用；有分才可做强弱着色 |
 | `searchEntryPoint.renderedContent` | Google 提供的「搜索建议」条 HTML/CSS | **生产环境必须原样展示**（服务条款） |
 
 官方也写明：来源相关性低、信息不完整等原因，可能导致**不返回** grounding 元数据——此时回答**不算** grounded result。
@@ -186,18 +186,12 @@ Web：城市预设 / 手动填坐标 /「使用我的位置」。
 
 应用层可先做**查询改写**（补时间、实体全称、地区），再调用 grounding。
 
-### 手段 F：用 `confidenceScores` 给句子打“可信标签”
+### 手段 F：`confidenceScores`（仅旧代模型有意义）
 
-API **自动**返回每段支撑的置信度；你的应用再用阈值标「弱 / 强」。
-详见下方 **[§4.2 弱置信详解](#42-弱置信详解应用层阈值不是模型开关)**。
-
-```python
-for support in gm.grounding_supports:
-    scores = support.confidence_scores or []
-    max_c = max(scores) if scores else 0.0
-    if max_c < 0.65:  # 这是你的产品策略，不是官方固定值
-        print("弱支撑：", support.segment.text)
-```
+官方 [GroundingSupport](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingMetadata) 写明：
+**Gemini 2.5 及之后 `confidenceScores` 为空，应忽略。**
+客户若只用新模型，**不要把“弱置信阈值”当主降幻觉手段**；应依赖引用来源、Search Suggestions、二次核对等。
+详见 **[§4.2](#42-弱置信详解新模型上基本可忽略)**。
 
 ### 手段 G：缺失 metadata 时重试 / 拒答
 
@@ -293,69 +287,44 @@ config = types.GenerateContentConfig(
 
 ---
 
-## 4.2 弱置信详解（应用层阈值，不是模型开关）
+## 4.2 弱置信详解（新模型上基本可忽略）
 
-### 它解决什么问题？
+### 客户会问：没分数了，阈值还有意义吗？
 
-成功 grounding 后，响应里的 `groundingSupports` 会把「回答中的某段文字」映射到「一个或多个来源」，并带上 `confidenceScores`。
-直观理解：**这段话和引用源有多“贴”**——不是法院意义上的“绝对正确”。
+**对 Gemini 2.5 / 3.x 等新模型：几乎没有产品意义。**
 
-网页本身可能错；模型也可能读偏。所以要用分数做**风险分层**：高分放心展示，低分标黄或二次核对。
+官方 REST 说明（`GroundingSupport.confidenceScores`）：
 
-### 是不是“启用就自动实现”？
+> For Gemini 2.0 and before, this list has the same size as `groundingChunkIndices`.  
+> **For Gemini 2.5 and later, this list is empty and should be ignored.**
 
-| 步骤 | 自动？ | 说明 |
-|------|--------|------|
-| 返回 `confidenceScores` | ✅ | 成功接地时由 API 带回 |
-| 多少分叫「弱」 | ❌ | **你的产品策略**（本仓库默认 `0.65`） |
-| 弱句怎么处理 | ❌ | 标色 / 折叠 / 拒答 / 触发 verify——你写逻辑 |
+来源：[GroundingMetadata](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingMetadata)
 
-因此：**开发者不需要（也无法）为每个问题预先猜一个“准绳”**；通常做法是：
+因此：
 
-1. 定一个默认阈值（如 0.65）
-2. 在 UI 或配置里允许调整（本 Web 页有滑块）
-3. 用真实日志看：标成弱的句子实际错了多少 → 再校准
-4. 高风险业务线用更严阈值，或弱句一律不进最终答复
+| 模型代际 | `confidenceScores` | 应用层阈值滑块 |
+|----------|-------------------|----------------|
+| ≤ Gemini 2.0 | 通常有 0~1 分 | 可用来标弱句 |
+| ≥ Gemini 2.5（客户主流） | **官方规定为空** | **调了也没数字可比** |
 
-### 代码怎么比？
+客户不会“开倒车”只用 2.0。方案里应明确：**数值置信度不是新模型 grounding 的可靠能力**；有来源映射（`groundingChunkIndices`）仍然有价值，但那是“引用了谁”，不是“有多可信的分数”。
 
-```python
-min_confidence = 0.65  # 应用层，可每次请求不同
-for support in gm.grounding_supports:
-    scores = list(support.confidence_scores or [])
-    max_c = max(scores) if scores else None
-    weak = (max_c is None) or (max_c < min_confidence)
-    # weak=True → UI 橙色；False → 绿色
-```
+### 新模型上什么还有意义？
 
-本仓库 `parse_grounding()` 已实现上述逻辑；Web 结果区会显示：
+按优先级：
 
-- **强/弱计数**卡片
-- 回答内 **绿 / 橙高亮**（上标带 `[来源·分数]`）
-- supports 表里的 **置信度条**
+1. **校验是否真的接地**（有无 `groundingMetadata`）  
+2. **展示来源 + 文内引用 + Search Suggestions**（可人工点进网页核对）  
+3. **System prompt：无据不编造**  
+4. **二次核对 / URL context**（高风险字段）  
+5. **地理偏置、排除域名**（场景相关）  
+6. ~~依赖 `confidenceScores` 阈值过滤~~ ← 新模型上不要当主路径  
 
-拖动「弱支撑阈值」滑块再发送，同一回答的强弱划分会变——这能直观说明：**分数不变，变的是你的着色策略**。
+### 本仓库为何还留着阈值控件？
 
-### 为什么有时显示「无分 / 未返回」而不是 0.xx？
+仅作对照演示：若偶尔打到仍返回分数的旧代模型，或阅读旧文档样例时能看懂字段。  
+**面向客户的方案叙述应以“2.5+ 无分、应忽略”为准，把降幻觉预算花在引用展示与核对流程上。**
 
-官方示例里的 `groundingSupports` 常带 `confidenceScores`，但 **Vertex 实际响应里该字段经常缺失**：这时仍有「片段 ↔ 来源」映射（`groundingChunkIndices`），只是**没有数值置信度**。
-
-本仓库以前把缺分显示成 `n/a` 并一律标「弱」，容易误解成“有一个很低的分被藏起来了”。现在会标成 **无分 / 未返回**，表示：
-
-- ❌ 不是 UI 故意不显示数字  
-- ❌ 也不是分数等于 0  
-- ✅ 是本次 API 根本没给 `confidenceScores`  
-
-有引用、无分数时，仍应人工点开来源核对；阈值滑块对「无分」行没有可比数字可切。
-
-### 常见误解
-
-| 误解 | 更准确 |
-|------|--------|
-| 弱 = 一定错 | 弱 = 与引用源关联偏弱或分数偏低，更值得核对 |
-| 强 = 一定对 | 强只说明支撑更足；源网页仍可能错 |
-| 阈值是 Google 规定的 | 阈值是应用选的；Google 只给分 |
-| 开了 grounding 就有弱置信过滤 | 开了才有分数；过滤/着色要你做 |
 
 ---
 
@@ -399,10 +368,10 @@ for support in gm.grounding_supports:
 |--------|----------------|
 | 建 Vertex 客户端 | `build_client()` |
 | Search + temperature + 排除域 + 地理 | `_build_search_config(lat_lng=...)` |
-| 解析 metadata / 弱支撑 | `parse_grounding()` + `min_confidence` |
+| 解析 metadata / 引用 | `parse_grounding()`；`min_confidence` 仅旧代有分时有用 |
 | 缺失重试 | `grounded_ask()` |
 | 第二轮核对 | `verify_claims()` / CLI `--verify` |
-| 弱置信滑块 + 绿/橙高亮 + 分数条 | `web_app.py` + 结果区 insight 卡片 |
+| 置信度 UI（标注 2.5+ 常无分） | `web_app.py`；勿对客户宣传为新模型主能力 |
 | 地理偏置：预设 / 定位 / 状态卡 | Web「地理偏置」盒子 + 结果「用了吗？」 |
 | 网页展示建议条与引用 | `templates/index.html` |
 
@@ -424,7 +393,7 @@ for support in gm.grounding_supports:
 
 ## 9. 一句话收束
 
-**Search grounding 给你的是“检索 + 生成 + 可机器解析的引用元数据”；准确性取决于：你是否校验元数据、是否过滤弱支撑、是否展示可点来源，以及提示词是否禁止无据编造。**  
+**Search grounding 给你的是“检索 + 生成 + 可机器解析的引用元数据”；新模型上准确性更取决于：是否真的接地、是否展示可点来源、提示词是否禁止无据编造，以及必要时的二次核对——而不是 `confidenceScores` 阈值。**  
 把“未接地 / 低置信”当成失败态处理，比指望模型自觉更可靠。
 
 下一步：打开 [`README.md`](./README.md) 看启动命令，或直接运行网页 UI 观察真实的 Google Search Suggestions 样式。

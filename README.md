@@ -55,7 +55,7 @@ python web_app.py
 
 页面会展示：
 
-1. 带引用高亮的回答（低置信片段标成弱支撑色）  
+1. 带引用来源的回答（2.5+ 通常无数值置信度，以引用为准）  
 2. **Google 返回的 Search Suggestions HTML（原样嵌入，不改 CSS）**  
 3. 实际搜索词、来源列表、`groundingSupports` 明细  
 4. 可选「二次核对」
@@ -69,7 +69,7 @@ python web_app.py
 | System prompt | 无可靠来源不编造、冲突并列 |
 | `exclude_domains` | `.env` → `EXCLUDE_DOMAINS`（Vertex） |
 | 钓鱼/风险站屏蔽 | `.env` → `BLOCKING_CONFIDENCE`（Vertex） |
-| **弱置信阈值** | API 自动给 `confidenceScores`；应用用阈值着色。Web 滑块 + 绿/橙高亮 + 分数条。详见 [learning_guide §4.2](./learning_guide.md#42-弱置信详解应用层阈值不是模型开关) |
+| **弱置信阈值** | **Gemini 2.5+ 官方不返回分数，对新模型基本无产品意义。** 勿当主卖点。详见 [learning_guide §4.2](./learning_guide.md#42-弱置信详解新模型上基本可忽略) |
 | **地理偏置** | 请求传 `latLng` 才生效，不会自动定位。Web：城市预设 / 浏览器定位。详见 [learning_guide §4.1](./learning_guide.md#41-地理偏置详解可选的-latlng) |
 | 校验 metadata | 缺失 → 自动重试；仍无则 `ungrounded` |
 | 第二轮核对 | CLI `--verify` / Web 勾选 |

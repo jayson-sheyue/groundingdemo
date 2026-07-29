@@ -557,11 +557,15 @@
 
     <div class="explain-grid">
       <article class="explain-card">
-        <h3>弱置信（应用层阈值）</h3>
-        <p>API <strong>自动</strong>返回每段文字的 <code>confidenceScores</code>。阈值是<strong>你定的产品策略</strong>：低于它的片段标成「弱」，便于警惕，不是 Google 替你判定对错。</p>
+        <h3>弱置信分数（新模型基本可忽略）</h3>
+        <p>
+          官方规定：<strong>Gemini 2.5 及之后 <code>confidenceScores</code> 为空，应忽略</strong>。
+          客户用新模型时，阈值滑块<strong>没有数字可比</strong>，不能当主降幻觉手段。
+          仍有价值的是：来源引用、Search Suggestions、二次核对。
+        </p>
         <div class="who">
-          <span><strong>Google 自动给：</strong>置信度分数</span>
-          <span><strong>你要设的：</strong>阈值（默认 0.65）+ 弱句如何展示</span>
+          <span><strong>≤2.0：</strong>通常有 0~1 分，阈值才有用</span>
+          <span><strong>≥2.5（主流）：</strong>无分；靠引用与核对，不靠阈值</span>
         </div>
       </article>
       <article class="explain-card">
@@ -592,7 +596,7 @@
       </div>
 
       <div class="slider-wrap" style="margin-top:1rem">
-        <label for="min_confidence_range">弱支撑阈值（应用层）</label>
+        <label for="min_confidence_range">弱支撑阈值（仅旧代有分时有效）</label>
         <input
           id="min_confidence_range"
           type="range"
@@ -603,12 +607,13 @@
         />
         <input type="hidden" id="min_confidence" name="min_confidence" value="{{ defaults.min_confidence }}" />
         <div class="slider-meta">
-          <span>更宽松（更少标弱）</span>
+          <span>更宽松</span>
           <span class="val">阈值 = <span id="conf-val">{{ defaults.min_confidence }}</span></span>
-          <span>更严格（更多标弱）</span>
+          <span>更严格</span>
         </div>
         <p class="hint">
-          拖动后：回答里置信度 &lt; 该值的句子会标成橙色「弱」。分数仍来自 API；这里只决定怎么着色。
+          Gemini 2.5+ 官方不返回 <code>confidenceScores</code>，拖动此滑块通常<strong>不会改变</strong>强弱判定（全是「无分」）。
+          保留控件仅便于对照旧文档 / 旧模型；客户方案请勿依赖此项。
         </p>
       </div>
 
@@ -729,8 +734,13 @@
             <h4>弱置信怎么体现在这次回答？</h4>
             <div class="big">{{ view.strong_count }} 强 / {{ view.weak_count }} 弱{% if view.missing_score_count %} / {{ view.missing_score_count }} 无分{% endif %}</div>
             <p>
-              阈值 <strong>{{ '%.2f'|format(view.min_confidence) }}</strong>：
-              绿色 = 有分数且 ≥ 阈值；橙色 = 有分数但 &lt; 阈值；灰色 = <strong>API 未返回 confidenceScores</strong>（不是 0 分，是没给分）。
+              {% if view.missing_score_count and view.missing_score_count == (view.strong_count + view.weak_count + view.missing_score_count) %}
+                本次全部为「无分」：符合 <strong>Gemini 2.5+ 官方行为</strong>（confidenceScores 为空应忽略）。
+                降幻觉请看下方<strong>来源列表 / 引用 / 二次核对</strong>，不要依赖阈值。
+              {% else %}
+                阈值 <strong>{{ '%.2f'|format(view.min_confidence) }}</strong>：
+                绿 = 有分且 ≥ 阈值；橙 = 有分但 &lt; 阈值；灰 = API 未返回分数。
+              {% endif %}
             </p>
           </div>
           <div class="insight geo-side">
@@ -850,8 +860,8 @@
     {% endif %}
 
     <footer>
-      本地演示。弱置信阈值与地理坐标由你在本页控制；API 负责给分与（在有坐标时）偏置搜索。
-      详见 <code>learning_guide.md</code>。运行记录在当前进程内存中。
+      本地演示。地理偏置仍按请求传坐标；数值置信度在 Gemini 2.5+ 上官方为空，请以引用来源与二次核对为准。
+      详见 <code>learning_guide.md</code> §4.1 / §4.2。运行记录在当前进程内存中。
     </footer>
   </div>
 
