@@ -34,8 +34,8 @@
       margin-top: 1.35rem; background: var(--panel); border: 1px solid var(--line);
       border-radius: 18px; box-shadow: var(--shadow); padding: 1.2rem 1.3rem;
     }
-    .explain-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-top: 1.2rem; }
-    @media (max-width: 780px) { .explain-grid { grid-template-columns: 1fr; } }
+    .explain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .85rem; margin-top: 1.2rem; }
+    @media (max-width: 900px) { .explain-grid { grid-template-columns: 1fr; } }
     .explain-card {
       border: 1px solid var(--line); border-radius: 14px; padding: .9rem 1rem;
       background: linear-gradient(180deg, #fffefb, #fff);
@@ -132,7 +132,48 @@
       border-radius: 12px; padding: .75rem .85rem; border: 1px solid var(--line); background: #fff;
     }
     .insight.mode-side { background: #f0fdfa; border-color: #99f6e4; }
-    .insight.geo-side { background: #fffbeb; border-color: #fcd34d; }
+    .insight.image-side { background: #fdf4ff; border-color: #e9d5ff; }
+    .mode-banner {
+      margin-top: .85rem; border-radius: 14px; padding: .9rem 1rem;
+      border: 1px solid var(--line); background: #fff;
+    }
+    .mode-banner.image-mode {
+      border-color: #e9d5ff; background: linear-gradient(180deg, #fdf4ff, #fff);
+    }
+    .mode-banner.search-mode {
+      border-color: #99f6e4; background: linear-gradient(180deg, #f0fdfa, #fff);
+    }
+    .mode-banner h3 { margin: 0 0 .45rem; font-size: .98rem; }
+    .workflow {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: .45rem;
+      margin: .65rem 0 0; font-size: .82rem; text-align: center;
+    }
+    @media (max-width: 720px) { .workflow { grid-template-columns: 1fr 1fr; } }
+    .workflow .step {
+      border: 1px dashed #d6d3d1; border-radius: 10px; padding: .45rem .35rem;
+      background: #fff; color: var(--muted); line-height: 1.35;
+    }
+    .workflow .step strong { display: block; color: var(--ink); font-size: .86rem; }
+    .gen-gallery {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem; margin-top: .65rem;
+    }
+    .gen-card {
+      border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff;
+    }
+    .gen-card img { display: block; width: 100%; height: auto; background: #f5f5f4; }
+    .gen-card .cap {
+      padding: .55rem .7rem; font-size: .82rem; color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+    }
+    .compare-table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-top: .5rem; }
+    .compare-table th, .compare-table td {
+      border-bottom: 1px solid var(--line); text-align: left; padding: .5rem .35rem; vertical-align: top;
+    }
+    .compare-table th { color: var(--muted); width: 28%; }
+    .hidden-mode { display: none !important; }
+    .resolve-final { color: var(--ok); }
+    .resolve-err { color: var(--warn); font-size: .82rem; }
     .insight h4 { margin: 0 0 .35rem; font-size: .92rem; }
     .insight .big { font-family: "IBM Plex Mono", monospace; font-size: 1.25rem; margin: .2rem 0; }
     .insight p { margin: 0; font-size: .88rem; color: var(--muted); line-height: 1.45; }
@@ -176,6 +217,88 @@
     footer { margin-top: 1.5rem; color: var(--muted); font-size: .88rem; }
     body.is-running { cursor: progress; }
     .geo-status { margin-top: .55rem; font-size: .86rem; color: var(--muted); }
+    .token-estimate {
+      margin-top: 1rem; padding: .85rem 1rem; border-radius: 12px;
+      border: 1px solid #99f6e4; background: #f0fdfa; font-size: .92rem;
+    }
+    .token-estimate .mono { display: block; margin-top: .35rem; }
+    .stream-panel { display: none; margin-top: 1rem; }
+    .stream-panel.visible { display: block; }
+    .stream-live {
+      min-height: 4rem; padding: .85rem 1rem; border-radius: 12px;
+      border: 1px solid var(--line); background: #fff; line-height: 1.65;
+    }
+    .stream-live.is-streaming {
+      border-left: 3px solid var(--accent);
+      background: linear-gradient(180deg, #f0fdfa, #fff);
+      white-space: pre-wrap;
+    }
+    .stream-live.is-streaming::after {
+      content: "▍";
+      animation: blink 1s step-end infinite;
+      color: var(--accent);
+      margin-left: 2px;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .stream-grounding { margin-top: 1rem; }
+    .stream-grounding h3 {
+      font-family: Fraunces, Georgia, serif; font-size: 1.05rem; margin: 1rem 0 .5rem;
+    }
+    .stream-grounding h3:first-child { margin-top: 0; }
+    .stream-meta {
+      margin-top: .75rem; font-size: .88rem; color: var(--muted);
+      font-family: "IBM Plex Mono", monospace; white-space: pre-wrap;
+    }
+    .upload-row {
+      display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; margin-top: .55rem;
+    }
+    .upload-list {
+      list-style: none; margin: .75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .5rem;
+    }
+    .upload-item {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem;
+      border: 1px solid var(--line); border-radius: 10px; padding: .55rem .75rem; background: #fff;
+      font-size: .88rem;
+    }
+    .upload-item .name { font-weight: 600; }
+    .upload-item .uri { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: .8rem; word-break: break-all; }
+    .upload-status { margin-top: .5rem; font-size: .86rem; color: var(--muted); }
+    .upload-status.ok { color: var(--ok); font-weight: 600; }
+    .upload-status.err { color: var(--bad); }
+    .composer { margin-bottom: .25rem; }
+    .composer-attach {
+      display: flex; flex-wrap: wrap; align-items: center; gap: .55rem .75rem;
+      margin-top: .55rem; padding-top: .55rem; border-top: 1px dashed var(--line);
+    }
+    .attach-btn {
+      display: inline-flex; align-items: center; gap: .35rem;
+      border: 1px solid #99f6e4; background: var(--accent-soft); color: var(--accent);
+      border-radius: 999px; padding: .35rem .85rem; font: inherit; font-size: .88rem;
+      font-weight: 600; cursor: pointer;
+    }
+    #upload-files { display: none; }
+    .attach-chips {
+      list-style: none; margin: .65rem 0 0; padding: 0;
+      display: flex; flex-wrap: wrap; gap: .45rem;
+    }
+    .attach-chip {
+      display: inline-flex; align-items: center; gap: .45rem;
+      border: 1px solid var(--line); border-radius: 999px; padding: .28rem .55rem .28rem .75rem;
+      background: #fff; font-size: .84rem; max-width: 100%;
+    }
+    .attach-chip .name {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14rem;
+    }
+    .attach-chip.pending { border-color: #fcd34d; background: #fffbeb; }
+    .attach-chip.uploading { border-color: #93c5fd; background: #eff6ff; }
+    .attach-chip.ready { border-color: #99f6e4; background: #f0fdfa; }
+    .attach-chip button {
+      border: 0; background: transparent; color: var(--muted); cursor: pointer;
+      font-size: 1rem; line-height: 1; padding: 0 .15rem;
+    }
+    .attach-chip .badge {
+      font-size: .72rem; font-weight: 700; color: var(--muted);
+    }
     .geo-status.on { color: var(--accent); font-weight: 600; }
   </style>
 </head>
@@ -184,43 +307,104 @@
     <header>
       <h1>Grounding Demo</h1>
       <p>
-        面向 <strong>Gemini 2.5+</strong>：演示 Google Search / Google Maps grounding、
-        引用来源与 Search Suggestions。不含旧版 <code>confidenceScores</code>。
+        面向 <strong>Gemini 2.5+</strong>：网页 Search（文字问答 + 引用）、
+        <strong>Image Search 生图接地</strong>（搜真实参考图再生成）、Maps、流式与 GCS 多模态。
         说明见 <a href="https://github.com/jayson-sheyue/groundingdemo/blob/main/learning_guide.md">learning_guide.md</a>。
       </p>
     </header>
 
     <div class="explain-grid">
       <article class="explain-card">
-        <h3>Search 地理偏置 ≠ Maps grounding</h3>
+        <h3>Search（网页）· 文字问答</h3>
         <p>
-          本页的 lat/lng 是 <code>toolConfig.retrievalConfig.latLng</code>：给 Search 或 Maps
-          <strong>附加位置上下文</strong>。它<strong>不是</strong>「Grounding with Google Maps」。
+          模型搜公开网页 → 生成<strong>文字回答</strong> → 返回
+          <code>groundingSupports</code> 高亮 + <code>web.uri</code> 来源。
+          适合事实、新闻、规格核对。
         </p>
-        <span class="tag">坐标 = 上下文，不是工具本身</span>
+        <span class="tag">产出 = 文字 + 网页引用</span>
       </article>
       <article class="explain-card">
-        <h3>Grounding with Google Maps</h3>
+        <h3>Image Search · 生图接地</h3>
         <p>
-          要用地图商户 / 地点数据，须启用工具 <code>googleMaps</code>（下方选 Maps 模式）。
-          数据源是 Maps，不是公开网页搜索。官方文档见 learning_guide §Maps。
+          需 <code>gemini-3.1-flash-image</code> + <code>responseModalities: IMAGE</code>。
+          模型先通过<strong>图片搜索</strong>找真实视觉参考，再<strong>生成图片</strong>。
+          价值：地标/产品外观更准，不靠纯训练记忆「猜」。
+        </p>
+        <span class="tag">产出 = 生成图 + 可选参考来源</span>
+      </article>
+      <article class="explain-card">
+        <h3>Maps · 地点数据</h3>
+        <p>
+          启用 <code>googleMaps</code>，数据源是 Google Maps 地点生态，不是网页 SERP。
+          lat/lng 是位置上下文，不等于 Maps 工具本身。
         </p>
         <span class="tag">工具 = googleMaps</span>
       </article>
     </div>
 
     <form class="panel" id="ask-form" method="post" action="/ask">
-      <label for="question">问题</label>
-      <textarea id="question" name="question" required>{{ defaults.question }}</textarea>
+      <div class="composer">
+        <label for="question" id="question-label">问题</label>
+        <textarea id="question" name="question" required placeholder="输入问题；可添加 PDF/图片，发送时与 grounding 一并送给 Gemini">{{ defaults.question }}</textarea>
+        <div class="composer-attach">
+          <label class="attach-btn" for="upload-files">添加附件</label>
+          <input
+            id="upload-files"
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.mp4,.mov,.mp3,.wav,.txt,.csv"
+          />
+          <span class="hint">附件在点击「发送 / 流式 / 预估 Token」时自动上传至 GCS，与文字同一轮请求；可与 Search/Maps grounding 同时使用。</span>
+        </div>
+        <ul class="attach-chips" id="attach-chips"></ul>
+        <input id="gcs_paths" name="gcs_paths" type="hidden" value="{{ defaults.get('gcs_paths','') }}" />
+      </div>
 
       <div class="mode-row">
-        <label><input type="radio" name="mode" value="search" {% if defaults.mode != 'maps' %}checked{% endif %} /> Search grounding（网页）</label>
-        <label><input type="radio" name="mode" value="maps" {% if defaults.mode == 'maps' %}checked{% endif %} /> Maps grounding（地点）</label>
+        <label><input type="radio" name="mode" value="search" {% if defaults.mode == 'search' %}checked{% endif %} /> Search（网页问答）</label>
+        <label><input type="radio" name="mode" value="image_search" {% if defaults.mode == 'image_search' %}checked{% endif %} /> Image Search（生图接地）</label>
+        <label><input type="radio" name="mode" value="search_hybrid" {% if defaults.mode == 'search_hybrid' %}checked{% endif %} /> 混合（网页+图片检索 · 文字）</label>
+        <label><input type="radio" name="mode" value="maps" {% if defaults.mode == 'maps' %}checked{% endif %} /> Maps（地点）</label>
       </div>
-      <p class="hint">Maps 模式适合「附近咖啡馆」「XX 路有什么餐厅」；Search 适合新闻、规格、一般事实。</p>
+
+      <div id="mode-banner-search" class="mode-banner search-mode">
+        <h3>网页 Search 模式</h3>
+        <p class="hint" style="margin:0">
+          适合「什么时候 / 多少钱 / 谁赢了」等<strong>文字事实题</strong>。
+          结果区展示：引用高亮、<code>webSearchQueries</code>、可点 <code>web.uri</code>。
+          模型推荐 <code>gemini-2.5-flash</code>。
+        </p>
+      </div>
+
+      <div id="mode-banner-image" class="mode-banner image-mode" hidden>
+        <h3>Image Search 生图接地 · 与网页 Search 完全不同</h3>
+        <p class="hint" style="margin:0">
+          不是「列出图片来源」的文字问答，而是：<strong>先搜真实参考图 → 再生成一张新图</strong>。
+          必须选用 <code>gemini-3.1-flash-image</code>，并开启 <code>responseModalities: TEXT + IMAGE</code>。
+        </p>
+        <div class="workflow" aria-hidden="true">
+          <div class="step"><strong>1. 你描述画面</strong>要生成什么场景/主体</div>
+          <div class="step"><strong>2. imageSearch</strong>检索 Google 图片作视觉参考</div>
+          <div class="step"><strong>3. 模型生图</strong>inline 图片写入响应</div>
+          <div class="step"><strong>4. 可选元数据</strong>imageSearchQueries / 参考来源块</div>
+        </div>
+      </div>
+
+      <div id="mode-banner-hybrid" class="mode-banner search-mode" hidden>
+        <h3>混合检索 · 仍是文字问答</h3>
+        <p class="hint" style="margin:0">
+          同时开 web + image 检索，回答仍是<strong>文字</strong>（可含网页与图片块来源）。
+          不是生图模式；要体验 Image Search 价值请选「生图接地」。
+        </p>
+      </div>
+
+      <p class="hint" id="mode-hint-global">
+        网页 Search → <code>web.uri</code>；Image Search 生图 → 输出 <code>inline_data</code> 图片 + 可选 <code>image.source_uri</code>。
+        <a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn#grounding-with-google-image-search" target="_blank" rel="noopener">官方文档 · Image Search</a>
+      </p>
 
       <div id="exclude-box" class="geo-box" style="margin-top:.85rem">
-        <h3>排除域名 exclude_domains（仅 Search · Vertex）</h3>
+        <h3>排除域名 exclude_domains（网页 Search / 混合模式 · Vertex）</h3>
         <p class="hint" style="margin-top:0">
           写入 <code>GoogleSearch(exclude_domains=[...])</code>，检索时不使用这些域名做 grounding。
           <strong>Vertex AI 支持</strong>；Gemini Developer API（API Key）官方标注不支持。
@@ -238,8 +422,9 @@
 
       <div class="row">
         <div>
-          <label for="model">模型（建议 2.5+）</label>
+          <label for="model" id="model-label">模型</label>
           <input id="model" name="model" type="text" value="{{ defaults.model }}" />
+          <p class="hint" id="model-hint" style="margin-top:.35rem"></p>
         </div>
         <div>
           <label>&nbsp;</label>
@@ -283,6 +468,7 @@
 
       <div class="checks">
         <label><input type="checkbox" name="verify" {% if defaults.get('verify') %}checked{% endif %} /> 二次核对（另一次请求：不搜网，只根据本轮来源判定 Supported/Unsupported）</label>
+        <label><input type="checkbox" name="resolve_redirects" value="on" {% if defaults.get('resolve_redirects') %}checked{% endif %} /> 解析 grounding redirect → 显示最终 URL（会多几次 HTTP 请求，略慢）</label>
       </div>
 
       <div class="actions">
@@ -291,11 +477,28 @@
           <span class="btn-idle">发送</span>
           <span class="btn-busy">检索中…</span>
         </button>
+        <button type="button" class="secondary-btn" id="stream-btn">流式发送（SSE）</button>
+        <button type="button" class="ghost-btn" id="count-btn">统计输入 Token</button>
+        <div id="token-estimate" class="token-estimate" style="display:none"></div>
         <span class="run-hint" id="run-hint">点击后立即进入加载态。</span>
       </div>
       <div class="running-box" id="running-box" role="status" aria-live="polite">
         <span class="spinner"></span>
         <span>正在调用 Gemini grounding…</span>
+      </div>
+      <div class="stream-panel panel" id="stream-panel">
+        <h2 style="margin-top:0">流式输出（SSE）</h2>
+        <p class="hint" id="stream-hint">流式过程中为纯文本打字；结束后根据 groundingSupports 自动加上引用高亮。</p>
+        <div class="stream-live answer" id="stream-live"></div>
+        <div class="stream-grounding" id="stream-grounding" hidden>
+          <h3>检索词（web）</h3>
+          <ul class="clean" id="stream-queries"></ul>
+          <h3>检索词（image）</h3>
+          <ul class="clean" id="stream-image-queries"></ul>
+          <h3>来源</h3>
+          <ul class="clean sources" id="stream-sources"></ul>
+        </div>
+        <div class="stream-meta" id="stream-meta"></div>
       </div>
     </form>
 
@@ -325,6 +528,7 @@
                 <span>queries={{ item.queries }}</span>
                 <span>geo={{ item.geo }}</span>
                 <span>exclude={{ item.get('exclude_n', 0) }}</span>
+                <span>gcs={{ item.get('gcs_n', 0) }}</span>
               </div>
               <button type="button" class="reuse-btn" data-question={{ item.question|tojson }}>填回问题框</button>
             </li>
@@ -338,7 +542,18 @@
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
     {% if view %}
-      <section class="panel">
+      {% macro grounding_url(label, url, resolved) %}
+        {% if url %}
+          <br /><span class="mono">{{ label }} (redirect): <a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ url }}</a></span>
+          {% if resolved and resolved.ok and resolved.final %}
+            <br /><span class="mono resolve-final">{{ label }} (最终): <a href="{{ resolved.final }}" target="_blank" rel="noopener noreferrer">{{ resolved.final }}</a></span>
+          {% elif resolved and not resolved.ok %}
+            <br /><span class="mono resolve-err">{{ label }} 解析失败: {{ resolved.error or 'unknown' }}</span>
+          {% endif %}
+        {% endif %}
+      {% endmacro %}
+
+      <section class="panel" id="result-section">
         <div class="meta">
           <span class="status {{ view.status }}">{{ view.status }}</span>
           <span>模式：<span class="mono">{{ view.mode }}</span></span>
@@ -348,10 +563,22 @@
         </div>
 
         <div class="insight-grid">
-          <div class="insight mode-side">
-            <h4>本次 grounding 工具</h4>
-            <div class="big">{{ 'googleMaps' if view.mode == 'maps' else 'googleSearch' }}</div>
-            <p>{% if view.mode == 'maps' %}依据 Google Maps 地点数据。{% else %}依据公开网页搜索。{% endif %}</p>
+          <div class="insight mode-side{% if view.demo_kind == 'image_gen' %} image-side{% endif %}">
+            <h4>{% if view.demo_kind == 'image_gen' %}生图接地流程{% else %}本次 grounding 工具{% endif %}</h4>
+            <div class="big">
+              {% if view.mode == 'maps' %}googleMaps
+              {% elif view.mode == 'image_search' %}imageSearch → 生图
+              {% elif view.mode == 'search_hybrid' %}googleSearch · web + image
+              {% else %}googleSearch · webSearch{% endif %}
+            </div>
+            <p>
+              {% if view.demo_kind == 'image_gen' %}
+                价值：用 Google 图片搜索获取<strong>真实视觉参考</strong>，再生成图片，减少地标/产品外观「瞎编」。
+                主产出是下方「生成的图片」，不是 Markdown 文字列表。
+              {% elif view.mode == 'maps' %}依据 Google Maps 地点数据。
+              {% elif view.mode == 'search_hybrid' %}同时启用网页与图片检索，回答仍为文字。
+              {% else %}依据公开网页搜索；来源为 web.uri，句子有高亮引用。{% endif %}
+            </p>
           </div>
           <div class="insight geo-side">
             <h4>本次是否传了 latLng？</h4>
@@ -362,7 +589,7 @@
               <div class="big">未传坐标</div>
               <p>请求未带 retrievalConfig.latLng。</p>
             {% endif %}
-            {% if view.mode == 'search' %}
+            {% if view.mode in ['search', 'search_hybrid'] %}
               <p style="margin-top:.55rem">
                 排除域名：
                 {% if view.exclude_domains %}
@@ -372,13 +599,73 @@
                 {% endif %}
               </p>
             {% endif %}
+            {% if view.gcs_paths %}
+              <p style="margin-top:.55rem">
+                本次输入附件（与问题同一轮）：
+                <span class="mono">{{ view.gcs_paths|join(', ') }}</span>
+              </p>
+            {% endif %}
           </div>
         </div>
 
+        {% if view.demo_kind == 'image_gen' %}
+        <h2>生成的图片（主产出 · inline_data）</h2>
+        {% if view.generated_images %}
+          <div class="gen-gallery">
+            {% for img in view.generated_images %}
+            <figure class="gen-card">
+              <img src="{{ img.data_uri }}" alt="generated {{ img.index }}" />
+              <figcaption class="cap">#{{ img.index }} · {{ img.mime_type }}</figcaption>
+            </figure>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p style="color:var(--muted)">本次响应未包含生成图片。请确认模型为 <code>gemini-3.1-flash-image</code>，且描述的是「要生成什么画面」。</p>
+        {% endif %}
+
+        <h2>生图说明（文本部分）</h2>
+        <div class="answer">{{ view.answer_html }}</div>
+
+        <h2>图片搜索检索词（imageSearchQueries）</h2>
+        {% if view.image_queries %}
+          <ul class="clean">{% for q in view.image_queries %}<li class="mono">{{ q }}</li>{% endfor %}</ul>
+        {% else %}
+          <p style="color:var(--muted)">（无）— 生图模型有时不返回标准 grounding 元数据，但可能仍使用了图片搜索。</p>
+        {% endif %}
+
+        <h2>检索到的参考图来源（groundingChunks · image）</h2>
+        <p class="hint">这些是<strong>搜索到的参考图</strong>及其着陆页，不是上面「生成图」本身。</p>
+        {% if view.image_reference_sources %}
+          <ul class="clean sources">
+            {% for s in view.image_reference_sources %}
+              <li>
+                <strong>[{{ s.index }}]</strong> {{ s.title or '(no title)' }}
+                {{ grounding_url('source_uri', s.source_uri, (s.resolved or {}).get('source_uri')) }}
+                {{ grounding_url('image_uri', s.image_uri, (s.resolved or {}).get('image_uri')) }}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p style="color:var(--muted)">（无）— 与「是否生图成功」独立；API 常只返回图片不返回来源块。</p>
+        {% endif %}
+
+        <h2>对比：网页 Search vs Image Search 生图</h2>
+        <table class="compare-table">
+          <thead><tr><th></th><th>网页 Search</th><th>Image Search 生图</th></tr></thead>
+          <tbody>
+            <tr><th>模型</th><td class="mono">gemini-2.5-flash</td><td class="mono">gemini-3.1-flash-image</td></tr>
+            <tr><th>你要什么</th><td>文字答案 + 事实来源</td><td>生成一张图 + 视觉准确</td></tr>
+            <tr><th>主产出</th><td>text + groundingSupports 高亮</td><td>inline_data 图片</td></tr>
+            <tr><th>检索</th><td>webSearch</td><td>imageSearch（视觉参考）</td></tr>
+            <tr><th>典型价值</th><td>防幻觉、可核对网页</td><td>地标/产品外观更贴近真实世界</td></tr>
+          </tbody>
+        </table>
+
+        {% else %}
         <h2>回答（引用来源高亮）</h2>
         <div class="answer">{{ view.answer_html }}</div>
 
-        {% if view.mode == 'search' %}
+        {% if view.mode in ['search', 'search_hybrid'] %}
         <h2>Google Search Suggestions</h2>
         {% if view.search_suggestions_html %}
           <div class="suggestions-box">
@@ -390,21 +677,33 @@
         {% endif %}
         {% endif %}
 
-        <h2>检索词</h2>
+        <h2>检索词（webSearchQueries）</h2>
         {% if view.queries %}
           <ul class="clean">{% for q in view.queries %}<li class="mono">{{ q }}</li>{% endfor %}</ul>
         {% else %}
-          <p style="color:var(--muted)">（无 / Maps 模式可能不填 webSearchQueries）</p>
+          <p style="color:var(--muted)">（无 / 纯 Image Search 模式可能为空）</p>
         {% endif %}
 
-        <h2>来源</h2>
+        <h2>检索词（imageSearchQueries）</h2>
+        {% if view.image_queries %}
+          <ul class="clean">{% for q in view.image_queries %}<li class="mono">{{ q }}</li>{% endfor %}</ul>
+        {% else %}
+          <p style="color:var(--muted)">（无 / 纯网页 Search 模式可能为空）</p>
+        {% endif %}
+
+        <h2>来源（groundingChunks）</h2>
         {% if view.sources %}
           <ul class="clean sources">
             {% for s in view.sources %}
               <li>
                 <strong>[{{ s.index }}]</strong> <span class="mono">({{ s.kind }})</span>
                 {{ s.title or '(no title)' }}
-                {% if s.uri %}<br /><a href="{{ s.uri }}" target="_blank" rel="noopener noreferrer">{{ s.uri }}</a>{% endif %}
+                {% if s.kind == 'image' %}
+                  {{ grounding_url('source_uri', s.source_uri, (s.resolved or {}).get('source_uri')) }}
+                  {{ grounding_url('image_uri', s.image_uri, (s.resolved or {}).get('image_uri')) }}
+                {% else %}
+                  {{ grounding_url('uri', s.uri, (s.resolved or {}).get('uri')) }}
+                {% endif %}
               </li>
             {% endfor %}
           </ul>
@@ -430,16 +729,30 @@
           <p style="color:var(--muted)">（无）</p>
         {% endif %}
 
+        {% if view.usage %}
+          <h2>Token 用量（usage_metadata · 实际）</h2>
+          <pre class="verify">{{ view.usage | tojson(indent=2) }}</pre>
+          {% if view.usage_cost %}
+          <p class="hint">
+            实际费用估算（基于 usage_metadata）：
+            输入 ${{ view.usage_cost.input_usd }} +
+            输出 ${{ view.usage_cost.output_usd }} =
+            <strong>${{ view.usage_cost.total_usd }} USD</strong>
+            （prompt={{ view.usage_cost.prompt_token_count }}，
+            output={{ view.usage_cost.candidates_token_count }}{% if view.usage_cost.thoughts_token_count %}，
+            thinking={{ view.usage_cost.thoughts_token_count }}{% endif %}）
+          </p>
+          {% endif %}
+        {% endif %}
+
         {% if view.verify_text %}
           <h2>二次核对</h2>
           <div class="verify">{{ view.verify_text }}</div>
         {% endif %}
+        {% endif %}
       </section>
     {% endif %}
 
-    <footer>
-      本 demo 仅覆盖现代 grounding：Search / Maps + 可选 latLng 上下文。旧版数值置信度已移除。
-    </footer>
   </div>
 
   <script>
@@ -476,22 +789,483 @@
         }
       }
 
-      form.addEventListener("submit", function () { setLoading(true); });
+      const streamBtn = document.getElementById("stream-btn");
+      const countBtn = document.getElementById("count-btn");
+      const streamPanel = document.getElementById("stream-panel");
+      const streamLive = document.getElementById("stream-live");
+      const streamMeta = document.getElementById("stream-meta");
+      const streamGrounding = document.getElementById("stream-grounding");
+      const streamQueries = document.getElementById("stream-queries");
+      const streamImageQueries = document.getElementById("stream-image-queries");
+      const streamSources = document.getElementById("stream-sources");
+      const streamHint = document.getElementById("stream-hint");
+      const resultSection = document.getElementById("result-section");
+      const tokenEstimate = document.getElementById("token-estimate");
+      const gcsPathsInput = document.getElementById("gcs_paths");
+      const uploadFilesInput = document.getElementById("upload-files");
+      const attachChips = document.getElementById("attach-chips");
+
+      let attachmentItems = [];
+
+      function syncGcsPaths() {
+        gcsPathsInput.value = attachmentItems
+          .filter(function (x) { return x.status === "ready" && x.gcs_uri; })
+          .map(function (x) { return x.gcs_uri; })
+          .join(", ");
+      }
+
+      function renderAttachmentChips() {
+        attachChips.innerHTML = "";
+        attachmentItems.forEach(function (item) {
+          const li = document.createElement("li");
+          li.className = "attach-chip " + item.status;
+          const name = document.createElement("span");
+          name.className = "name";
+          name.textContent = item.filename;
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          if (item.status === "local") badge.textContent = "待发送时上传";
+          else if (item.status === "uploading") badge.textContent = "上传中…";
+          else badge.textContent = "已就绪";
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.title = "移除";
+          removeBtn.textContent = "×";
+          removeBtn.addEventListener("click", function () {
+            attachmentItems = attachmentItems.filter(function (x) { return x.id !== item.id; });
+            syncGcsPaths();
+            renderAttachmentChips();
+          });
+          li.appendChild(name);
+          li.appendChild(badge);
+          li.appendChild(removeBtn);
+          attachChips.appendChild(li);
+        });
+      }
+
+      uploadFilesInput.addEventListener("change", function () {
+        const files = uploadFilesInput.files;
+        if (!files || !files.length) return;
+        for (let i = 0; i < files.length; i++) {
+          attachmentItems.push({
+            id: "f-" + Date.now() + "-" + i + "-" + Math.random().toString(36).slice(2, 7),
+            file: files[i],
+            filename: files[i].name,
+            status: "local",
+          });
+        }
+        uploadFilesInput.value = "";
+        renderAttachmentChips();
+      });
+
+      async function ensureAttachmentsReady() {
+        const locals = attachmentItems.filter(function (x) { return x.status === "local"; });
+        if (!locals.length) return;
+        locals.forEach(function (x) { x.status = "uploading"; });
+        renderAttachmentChips();
+        const fd = new FormData();
+        locals.forEach(function (x) { fd.append("files", x.file); });
+        const resp = await fetch("/upload", { method: "POST", body: fd });
+        const payload = await resp.json();
+        if (!resp.ok) {
+          locals.forEach(function (x) { x.status = "local"; });
+          renderAttachmentChips();
+          throw new Error(payload.error || ("HTTP " + resp.status));
+        }
+        (payload.uploaded || []).forEach(function (u, i) {
+          if (!locals[i]) return;
+          locals[i].status = "ready";
+          locals[i].gcs_uri = u.gcs_uri;
+          locals[i].filename = u.filename;
+          delete locals[i].file;
+        });
+        syncGcsPaths();
+        renderAttachmentChips();
+      }
+
+      async function prepareAndSubmit() {
+        if (!q.value.trim()) {
+          alert("请输入问题。");
+          return;
+        }
+        setLoading(true);
+        try {
+          await ensureAttachmentsReady();
+          form.submit();
+        } catch (err) {
+          setLoading(false);
+          alert("附件上传失败：" + (err.message || String(err)));
+        }
+      }
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        prepareAndSubmit();
+      });
+
+      function formDataFromForm() {
+        return new FormData(form);
+      }
+
+      function escapeHtml(text) {
+        return String(text)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function annotateAnswerHtml(text, supports) {
+        if (!text) return "";
+        if (!supports || !supports.length) {
+          return escapeHtml(text).replace(/\n/g, "<br>\n");
+        }
+        const intervals = [];
+        supports.forEach(function (span) {
+          let start = span.start_index;
+          let end = span.end_index;
+          if (start == null || end == null) {
+            if (span.text && text.indexOf(span.text) >= 0) {
+              start = text.indexOf(span.text);
+              end = start + span.text.length;
+            } else {
+              return;
+            }
+          }
+          start = Number(start);
+          end = Number(end);
+          if (start < 0 || end <= start || end > text.length) {
+            if (span.text && text.indexOf(span.text) >= 0) {
+              start = text.indexOf(span.text);
+              end = start + span.text.length;
+            } else {
+              return;
+            }
+          }
+          intervals.push({ start: start, end: end, span: span });
+        });
+        intervals.sort(function (a, b) { return a.start - b.start; });
+        const chosen = [];
+        let occupied = -1;
+        intervals.forEach(function (it) {
+          if (it.start < occupied) return;
+          chosen.push(it);
+          occupied = it.end;
+        });
+        const parts = [];
+        let cursor = 0;
+        chosen.forEach(function (it) {
+          if (cursor < it.start) parts.push(escapeHtml(text.slice(cursor, it.start)));
+          const refs = (it.span.chunk_indices || []).join(",") || "?";
+          parts.push(
+            '<mark class="cite" title="来源 [' + refs + ']">' +
+            escapeHtml(text.slice(it.start, it.end)) +
+            '<sup class="cite-ref">[' + refs + ']</sup></mark>'
+          );
+          cursor = it.end;
+        });
+        if (cursor < text.length) parts.push(escapeHtml(text.slice(cursor)));
+        return parts.join("").replace(/\n/g, "<br>\n");
+      }
+
+      const modelInput = document.getElementById("model");
+      const modelHint = document.getElementById("model-hint");
+      const questionLabel = document.getElementById("question-label");
+      const modeBannerSearch = document.getElementById("mode-banner-search");
+      const modeBannerImage = document.getElementById("mode-banner-image");
+      const modeBannerHybrid = document.getElementById("mode-banner-hybrid");
+
+      const MODE_DEFAULTS = {
+        search: {
+          model: "gemini-2.5-flash",
+          question: "美国下一次可见的日全食是什么时候？",
+          qLabel: "问题（文字事实）",
+          qPlaceholder: "例如：美国下一次日全食是什么时候？",
+          modelHint: "推荐 gemini-2.5-flash / 2.5-pro",
+        },
+        image_search: {
+          model: "gemini-3.1-flash-image",
+          question: "请使用 Google 图片搜索查找真实视觉参考，然后生成一张写实风格照片：墨西哥城阿兹特克体育场（Estadio Azteca）在 2026 世界杯期间的日间外观。先用 1–2 句说明参考了哪些视觉特征，再输出图片。",
+          qLabel: "生图描述（要生成什么画面）",
+          qPlaceholder: "描述要生成的场景/主体，不要用「列出图片来源」式问答",
+          modelHint: "必须 gemini-3.1-flash-image（生图模型）",
+        },
+        search_hybrid: {
+          model: "gemini-2.5-flash",
+          question: "2026 年世界杯主办城市有哪些？请同时给出相关体育场示意图的来源。",
+          qLabel: "问题（文字 + 双检索）",
+          qPlaceholder: "仍是文字回答；不是生图模式",
+          modelHint: "推荐 gemini-2.5-flash",
+        },
+        maps: {
+          model: "gemini-2.5-flash",
+          question: "这附近有什么口碑好的咖啡馆？",
+          qLabel: "问题（本地 / 地点）",
+          qPlaceholder: "例如：这附近有什么咖啡馆？",
+          modelHint: "推荐 gemini-2.5-flash",
+        },
+      };
+
+      function currentMode() {
+        const el = document.querySelector('input[name="mode"]:checked');
+        return el ? el.value : "search";
+      }
+
+      function applyModeUi(forceDefaults) {
+        const mode = currentMode();
+        const cfg = MODE_DEFAULTS[mode] || MODE_DEFAULTS.search;
+        if (modeBannerSearch) modeBannerSearch.hidden = (mode !== "search");
+        if (modeBannerImage) modeBannerImage.hidden = (mode !== "image_search");
+        if (modeBannerHybrid) modeBannerHybrid.hidden = (mode !== "search_hybrid");
+        if (questionLabel) questionLabel.textContent = cfg.qLabel;
+        if (q) q.placeholder = cfg.qPlaceholder;
+        if (modelHint) modelHint.textContent = cfg.modelHint;
+        if (streamBtn) {
+          streamBtn.disabled = (mode === "image_search");
+          streamBtn.title = mode === "image_search"
+            ? "生图模式不支持流式，请用「发送」"
+            : "";
+        }
+        if (forceDefaults) {
+          if (modelInput) modelInput.value = cfg.model;
+          if (q) q.value = cfg.question;
+        }
+        refreshExcludeBox();
+      }
+
+      function refreshExcludeBox() {
+        var mode = document.querySelector('input[name="mode"]:checked');
+        var box = document.getElementById("exclude-box");
+        if (!box || !mode) return;
+        var on = (mode.value === "search" || mode.value === "search_hybrid");
+        box.style.opacity = on ? "1" : "0.45";
+      }
+
+      function appendResolvedUrlHtml(html, label, url, resolved) {
+        if (!url) return html;
+        html += "<br /><span class=\"mono\">" + escapeHtml(label) + " (redirect): <a href=\"" + escapeHtml(url) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(url) + "</a></span>";
+        if (resolved && resolved.ok && resolved.final) {
+          html += "<br /><span class=\"mono resolve-final\">" + escapeHtml(label) + " (最终): <a href=\"" + escapeHtml(resolved.final) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(resolved.final) + "</a></span>";
+        } else if (resolved && !resolved.ok) {
+          html += "<br /><span class=\"mono resolve-err\">" + escapeHtml(label) + " 解析失败: " + escapeHtml(resolved.error || "unknown") + "</span>";
+        }
+        return html;
+      }
+
+      function renderStreamGrounding(grounding) {
+        streamQueries.innerHTML = "";
+        streamImageQueries.innerHTML = "";
+        streamSources.innerHTML = "";
+        if (!grounding) {
+          streamGrounding.hidden = true;
+          return;
+        }
+        const queries = grounding.web_search_queries || [];
+        const imageQueries = grounding.image_search_queries || [];
+        const sources = grounding.sources || [];
+        if (!queries.length && !imageQueries.length && !sources.length) {
+          streamGrounding.hidden = true;
+          return;
+        }
+        streamGrounding.hidden = false;
+        if (queries.length) {
+          queries.forEach(function (q) {
+            const li = document.createElement("li");
+            li.className = "mono";
+            li.textContent = q;
+            streamQueries.appendChild(li);
+          });
+        } else {
+          const li = document.createElement("li");
+          li.style.color = "var(--muted)";
+          li.textContent = "（无）";
+          streamQueries.appendChild(li);
+        }
+        if (imageQueries.length) {
+          imageQueries.forEach(function (q) {
+            const li = document.createElement("li");
+            li.className = "mono";
+            li.textContent = q;
+            streamImageQueries.appendChild(li);
+          });
+        } else {
+          const li = document.createElement("li");
+          li.style.color = "var(--muted)";
+          li.textContent = "（无）";
+          streamImageQueries.appendChild(li);
+        }
+        if (sources.length) {
+          sources.forEach(function (s) {
+            const li = document.createElement("li");
+            const title = s.title || "(no title)";
+            let html = "<strong>[" + s.index + "]</strong> <span class=\"mono\">(" + (s.kind || "?") + ")</span> " + escapeHtml(title);
+            const resolved = s.resolved || {};
+            if (s.kind === "image") {
+              html = appendResolvedUrlHtml(html, "source_uri", s.source_uri, resolved.source_uri);
+              html = appendResolvedUrlHtml(html, "image_uri", s.image_uri, resolved.image_uri);
+            } else {
+              html = appendResolvedUrlHtml(html, "uri", s.uri, resolved.uri);
+            }
+            li.innerHTML = html;
+            streamSources.appendChild(li);
+          });
+        } else {
+          const li = document.createElement("li");
+          li.style.color = "var(--muted)";
+          li.textContent = "（无）";
+          streamSources.appendChild(li);
+        }
+      }
+
+      function finalizeStreamAnswer(text, grounding) {
+        streamLive.classList.remove("is-streaming");
+        if (grounding && grounding.supports && grounding.supports.length) {
+          streamLive.innerHTML = annotateAnswerHtml(text, grounding.supports);
+          streamHint.textContent = "流式完成：已根据 groundingSupports 加上引用高亮（与「发送」同一套逻辑）。";
+        } else {
+          streamLive.textContent = text;
+          streamHint.textContent = "流式完成：本次无 groundingSupports，显示纯文本。";
+        }
+        renderStreamGrounding(grounding);
+      }
+
+      function setStreamingUi(on) {
+        setLoading(on);
+        streamBtn.disabled = on;
+        countBtn.disabled = on;
+        if (on) {
+          if (resultSection) resultSection.style.display = "none";
+          streamPanel.classList.add("visible");
+          streamLive.textContent = "";
+          streamLive.classList.add("is-streaming");
+          streamLive.innerHTML = "";
+          streamMeta.textContent = "";
+          streamGrounding.hidden = true;
+          streamHint.textContent = "正在接收文本流…（此阶段为纯文本，结束后才高亮引用）";
+        }
+      }
+
+      function appendStreamMeta(line) {
+        streamMeta.textContent += line + "\n";
+      }
+
+      streamBtn.addEventListener("click", async function () {
+        if (currentMode() === "image_search") {
+          alert("Image Search 生图模式不支持流式，请使用「发送」以获取生成的图片。");
+          return;
+        }
+        if (!q.value.trim()) {
+          alert("请输入问题。");
+          return;
+        }
+        setStreamingUi(true);
+        hint.textContent = "SSE 流式接收中…";
+        let streamText = "";
+        let lastGrounding = null;
+        try {
+          await ensureAttachmentsReady();
+          const resp = await fetch("/ask/stream", { method: "POST", body: formDataFromForm() });
+          if (!resp.ok) {
+            const err = await resp.json().catch(function () { return {}; });
+            throw new Error(err.error || ("HTTP " + resp.status));
+          }
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+            for (const block of parts) {
+              const lines = block.split("\n");
+              let eventName = "message";
+              let dataLine = "";
+              for (const line of lines) {
+                if (line.startsWith("event:")) eventName = line.slice(6).trim();
+                if (line.startsWith("data:")) dataLine = line.slice(5).trim();
+              }
+              if (!dataLine) continue;
+              let payload;
+              try { payload = JSON.parse(dataLine); } catch (e) { continue; }
+              if (eventName === "text_delta" && payload.text) {
+                streamText += payload.text;
+                streamLive.textContent = streamText;
+              } else if (eventName === "grounding") {
+                lastGrounding = payload;
+                appendStreamMeta("[grounding] web_queries=" + (payload.web_search_queries || []).length
+                  + " image_queries=" + (payload.image_search_queries || []).length
+                  + " sources=" + (payload.sources || []).length
+                  + " supports=" + (payload.supports || []).length);
+              } else if (eventName === "usage") {
+                appendStreamMeta("[usage 实际] " + JSON.stringify(payload));
+              } else if (eventName === "done") {
+                const finalText = payload.text || streamText;
+                const grounding = payload.grounding || lastGrounding;
+                finalizeStreamAnswer(finalText, grounding);
+                appendStreamMeta("[done] status=" + payload.status);
+                if (payload.usage) appendStreamMeta("[final usage] " + JSON.stringify(payload.usage));
+              } else if (eventName === "elapsed") {
+                appendStreamMeta("[elapsed] " + payload.elapsed_ms + " ms");
+              } else if (eventName === "error") {
+                streamLive.classList.remove("is-streaming");
+                appendStreamMeta("[error] " + payload.message);
+              }
+            }
+          }
+          if (streamLive.classList.contains("is-streaming") && streamText) {
+            finalizeStreamAnswer(streamText, lastGrounding);
+          }
+        } catch (err) {
+          streamLive.classList.remove("is-streaming");
+          appendStreamMeta("[error] " + (err.message || String(err)));
+        } finally {
+          setLoading(false);
+          streamBtn.disabled = false;
+          countBtn.disabled = false;
+          hint.textContent = "流式完成。";
+        }
+      });
+
+      countBtn.addEventListener("click", async function () {
+        if (!q.value.trim()) {
+          alert("请输入问题。");
+          return;
+        }
+        countBtn.disabled = true;
+        tokenEstimate.style.display = "block";
+        tokenEstimate.textContent = "正在统计 token…";
+        try {
+          await ensureAttachmentsReady();
+          const resp = await fetch("/count-tokens", { method: "POST", body: formDataFromForm() });
+          const payload = await resp.json();
+          if (!resp.ok) throw new Error(payload.error || ("HTTP " + resp.status));
+          let text = "输入 token（count_tokens API）: " + payload.input_tokens;
+          text += "。发送/流式完成后，usage_metadata 会返回实际 prompt + output 总消耗。";
+          if (payload.input_cost_usd) {
+            text += " 仅输入费用约: $" + payload.input_cost_usd.input_usd + " USD。";
+          } else {
+            text += " 在 .env 设置 GEMINI_PRICE_*_PER_MTOK 可显示输入费用；完整费用请看发送后的 usage_metadata。";
+          }
+          if (payload.resolved_gcs_uris && payload.resolved_gcs_uris.length) {
+            text += "\nGCS: " + payload.resolved_gcs_uris.join(", ");
+          }
+          tokenEstimate.textContent = text;
+        } catch (err) {
+          tokenEstimate.textContent = "统计失败: " + (err.message || String(err));
+        } finally {
+          countBtn.disabled = false;
+        }
+      });
 
       document.querySelectorAll('input[name="mode"]').forEach(function (el) {
         el.addEventListener("change", function () {
-          if (el.value === "maps" && q && /日全食|世界杯|FIFA/i.test(q.value)) {
-            q.value = "这附近有什么口碑好的咖啡馆？";
-          }
-          var box = document.getElementById("exclude-box");
-          if (box) box.style.opacity = (el.value === "maps") ? "0.45" : "1";
+          if (!el.checked) return;
+          applyModeUi(true);
         });
       });
-      (function () {
-        var mode = document.querySelector('input[name="mode"]:checked');
-        var box = document.getElementById("exclude-box");
-        if (box && mode) box.style.opacity = (mode.value === "maps") ? "0.45" : "1";
-      })();
+      applyModeUi(false);
 
       document.querySelectorAll("#geo-presets .chip").forEach(function (el) {
         el.addEventListener("click", function () {

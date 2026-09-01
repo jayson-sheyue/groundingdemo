@@ -1,13 +1,10 @@
-# Grounding 学习指南（Gemini 2.5+）
+# Grounding 学习指南（Gemini 2.5+ / Vertex AI）
 
-本仓库只演示**当前代**能力：Google Search grounding、Google Maps grounding、可选 `latLng` 位置上下文。  
-**不包含**旧版 `confidenceScores` 阈值方案（官方：Gemini 2.5+ 该字段为空，应忽略）。
+本仓库演示 **Vertex AI** 上当前代 Grounding：`googleSearch`（网页 / Image Search 生图 / 混合）、`googleMaps`、可选 `latLng`、SSE 流式、GCS 多模态、count-tokens、redirect 解析。  
+**不包含**旧版 `confidenceScores` 阈值（Gemini 2.5+ 官方为空，应忽略）。
 
-> 官方文档：  
-> - [Grounding 概览](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/overview)  
-> - [Grounding with Google Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn)  
-> - [Grounding with Google Maps](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-maps)  
-> - [GroundingMetadata](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingMetadata)
+> 快速上手：[README.md](./README.md)  
+> 官方文档全表：[§10 官方文档索引](#10-官方文档索引)
 
 ---
 
@@ -15,12 +12,14 @@
 
 大模型会“编”。Grounding 让回答先挂到**可核对的外部数据**上，再生成文字并尽量带回引用。
 
-本 demo 支持两种**不同工具**（数据源不同）：
+本 demo 支持三种 grounding **工具族**（数据源不同）：
 
-| 模式 | API 工具 | 数据从哪来 | 典型问题 |
-|------|----------|------------|----------|
-| Search | `googleSearch` | 公开网页 | 赛事结果、产品规格、新闻 |
-| Maps | `googleMaps` | Google Maps 地点生态 | 附近餐厅、营业时间、地方商户 |
+| 模式 | API 工具 | 数据从哪来 | 典型问题 / 产出 |
+|------|----------|------------|-----------------|
+| Search（网页） | `googleSearch`（`webSearch`） | 公开网页 | 文字事实问答 + 引用高亮 |
+| Image Search（生图） | `googleSearch` + `imageSearch` + `responseModalities: IMAGE` | Google 图片索引 → **生成图** | 描述画面 → `inline_data` 图片 |
+| Search 混合 | `webSearch` + `imageSearch` | 网页 + 图片检索 | 文字回答，来源含 web/image 块 |
+| Maps | `googleMaps` | Google Maps 地点 | 附近门店、营业时间 |
 
 另有第三样东西——**`latLng` 位置上下文**——见下一节。它**不是**第三种 grounding 工具。
 
@@ -140,6 +139,49 @@ python demo_grounded_search.py "日全食何时？" --mode search
 python demo_grounded_search.py "附近咖啡馆" --mode maps --lat 31.2304 --lng 121.4737 --verify
 ```
 
+### 3.3 Image Search grounding · 生图（与网页 Search 不同）
+
+官方定位：**生图前**通过 Google 图片搜索检索真实视觉参考，再输出 `IMAGE`。不是「列出图片来源」的文字问答。
+
+```python
+response = client.models.generate_content(
+    model="gemini-3.1-flash-image",
+    contents="请使用图片搜索作参考，生成一张写实照片：巴黎埃菲尔铁塔日落全景。",
+    config=types.GenerateContentConfig(
+        temperature=1.0,
+        response_modalities=["TEXT", "IMAGE"],
+        tools=[
+            types.Tool(
+                google_search=types.GoogleSearch(
+                    search_types=types.SearchTypes(
+                        image_search=types.ImageSearch(),
+                    ),
+                )
+            )
+        ],
+    ),
+)
+# 主产出：candidates[0].content.parts 里的 inline_data 图片
+# 可选：grounding_metadata.imageSearchQueries / groundingChunks[].image
+```
+
+| | 网页 Search | Image Search 生图 |
+|--|-------------|-------------------|
+| 模型 | `gemini-2.5-flash` | `gemini-3.1-flash-image` |
+| 你要什么 | 文字答案 | **生成一张图** |
+| 主产出 | text + `groundingSupports` | `inline_data` 图片 |
+| 检索 | webSearch | imageSearch（视觉参考） |
+| 价值 | 事实可核对 | 地标/产品外观更贴近真实 |
+
+```bash
+python demo_grounded_search.py --mode image_search   # 默认生图示例 prompt
+python demo_grounded_search.py --mode search "日全食何时？"
+```
+
+Web UI：选 **Image Search（生图接地）** → 描述要生成的画面 → 结果区展示**生成的图片** + `imageSearchQueries` + 参考来源块。
+
+官方：[Grounding with Google Image Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn#grounding-with-google-image-search)
+
 ---
 
 ## 4. UI 上的降幻觉手段（必须看清：能做什么 / 不能做什么）
@@ -150,12 +192,12 @@ python demo_grounded_search.py "附近咖啡馆" --mode maps --lat 31.2304 --lng
 
 | # | UI 上你看到的 | 背后在做什么 | 降幻觉作用 | 明确局限 |
 |---|---------------|--------------|------------|----------|
-| 1 | **Search / Maps 单选** | `tools=[googleSearch]` 或 `googleMaps` | 选对数据源，避免「用网页搜附近店 / 用地图查全球新闻」 | 选错模式仍会偏题 |
+| 1 | **Search / Image / 混合 / Maps 单选** | `googleSearch`（web / image / 混合）或 `googleMaps` | 选对数据源，避免「用网页搜附近店 / 用地图查全球新闻 / 用图片搜纯文字事实」 | 选错模式仍会偏题 |
 | 2 | **latLng（城市芯片 / 浏览器定位）** | `toolConfig.retrievalConfig.latLng` + 提示词注入位置 | 本地题检索更贴；并避免模型嘴上说「没有位置」 | 坐标≠Maps 工具；Search+坐标仍可能出网页榜单 |
 | 3 | **缺 metadata 时重试** | 无 `grounding_metadata` 则强化提示再请求一次 | 减少「开了工具却没真搜」就当事实交卷 | 重试后仍可能 ungrounded |
 | 4 | **status = ok / ungrounded** | 解析是否存在 grounding 元数据 | 未接地时UI标黄，不当已核实 | 有 metadata ≠ 内容正确 |
 | 5 | **回答里的引用高亮 `[n]`** | 用 `groundingSupports` 把句子标到来源 | 用户可点源核对，降低盲信 | 2.5+ 无置信分数；有引用仍可能读偏 |
-| 6 | **来源列表** | `groundingChunks`（web / maps） | 可点击原始出处 | 网页/点评本身可能错或过时 |
+| 6 | **来源列表** | `groundingChunks`（web / image / maps） | 可点击原始出处；image 模式区分 `source_uri` 与 `image_uri` | 网页/图片/点评本身可能错或过时 |
 | 7 | **引用片段表** | supports 的 segment ↔ chunk 索引 | 看清「哪句靠哪条源」 | 不是正确性分数 |
 | 8 | **Google Search Suggestions** | 原样渲染 `searchEntryPoint.renderedContent` | 合规 + 用户可进 Google SERP 自查 | 仅 Search 模式；生产必须原样展示 |
 | 9 | **二次核对勾选** | 第二轮无 grounding，只根据来源判 Supported/Unsupported | 抓正文相对来源的夸大/编造 | **第二轮也会幻觉**，不能当终审 |
@@ -163,6 +205,7 @@ python demo_grounded_search.py "附近咖啡馆" --mode maps --lat 31.2304 --lng
 | 11 | **排除域名（Search）** | `GoogleSearch(exclude_domains=[...])` | 降低噪声站 / 竞品站进入 grounding | **仅 Vertex**；Gemini API Key 路径不支持；Maps 模式无此参数 |
 | 12 | （代码内，UI 不单独开关）**System prompt** | 无来源不编造、冲突并列等 | 约束生成行为 | 提示词无法强制模型 100% 遵守 |
 | 13 | （代码内）**temperature=1.0** | 官方对 Search grounding 的建议配置 | 按官方推荐取值 | 不是「温度越低越准」 |
+| 14 | **解析 grounding redirect** | `redirect_resolve.py` 跟随 HTTPS 重定向 | 展示最终 URL（维基等） | 非 API 字段；部分站点会拒绝 HEAD |
 
 ### 4.1 二次核对不能保证无幻觉
 
@@ -222,10 +265,14 @@ types.Tool(
 | 字段 | 含义 |
 |------|------|
 | `grounding_metadata` 是否存在 | 是否真正接地（UI: status） |
-| `webSearchQueries` | Search 实际搜词（UI: 检索词） |
-| `groundingChunks` | 来源（UI: 来源列表） |
+| `webSearchQueries` | 网页 Search 实际搜词 |
+| `imageSearchQueries` | Image Search 视觉检索词 |
+| `groundingChunks` | 来源（`web` / `image` / `maps`） |
+| `groundingChunks[].web.uri` | 网页来源（多为 **redirect URL**） |
+| `groundingChunks[].image` | `source_uri`（着陆页）+ `image_uri`（图直链），多为 redirect |
 | `groundingSupports` | 哪段回答对应哪些来源（UI: 高亮 + 片段表） |
-| `searchEntryPoint.renderedContent` | Search 建议条（UI: Suggestions，须原样） |
+| `searchEntryPoint.renderedContent` | Search 建议条（须原样展示） |
+| `inline_data`（Image 生图模式） | 模型生成的图片，在 `content.parts` 中 |
 | `confidenceScores` | **2.5+ 忽略** |
 
 ---
@@ -234,15 +281,19 @@ types.Tool(
 
 | 手段 | 代码 | UI |
 |------|------|-----|
-| Search / Maps | `grounded_ask(..., mode=)` | 顶部单选 |
+| Image Search 生图 | `grounded_ask(..., mode=image_search)` + `response_modalities` | 「生图接地」+ 生成图画廊 |
 | latLng + 提示注入 | `_build_config` + `_with_location_hint` | 地理盒子 / 定位按钮 |
-| 排除域名 | `GoogleSearch(exclude_domains=...)` | 「排除域名」输入框（Search） |
+| 排除域名 | `GoogleSearch(exclude_domains=...)` | 「排除域名」（Search / 混合） |
 | 缺 metadata 重试 | `grounded_ask` 第二次强化提示 | 「缺 metadata 时重试」 |
 | 引用高亮 / 来源 / 片段 | `parse_grounding` + `annotate_answer_html` | 结果区各块 |
 | Search Suggestions | `search_suggestions_html` | Suggestions 盒子 |
-| 二次核对 | `verify_claims` | 勾选 + 「二次核对」结果块 |
+| 二次核对 | `verify_claims` | 勾选 + 核对结果 |
 | 运行记录 | `web_app._RUN_HISTORY` | 「运行记录」面板 |
-| System / temperature | `_build_config` | （无单独控件，每次请求固定启用） |
+| SSE 流式 | `grounded_ask_stream` | 「流式发送」/ `POST /ask/stream` |
+| GCS 多模态 | `build_user_contents` / `gcs_upload.py` | 「添加附件」 |
+| count-tokens | `count_tokens_for_request` | 「统计输入 Token」 |
+| redirect 解析 | `redirect_resolve.enrich_sources` | 勾选「解析 grounding redirect」 |
+| System / temperature | `_build_config` | （代码内固定） |
 
 ```bash
 pip install -r requirements.txt
@@ -255,4 +306,187 @@ python web_app.py   # http://127.0.0.1:8080
 
 ## 7. 给客户的一句话
 
-**Search 用网页、Maps 用地图地点、latLng 只是位置上下文；UI 用选工具、传坐标、校验是否接地、展示可点来源与可选二次核对来降低幻觉——均不能等同于事实保证。新模型请忽略 confidenceScores。**
+**网页 Search 答事实、Image Search 生图前搜视觉参考、Maps 查地点；latLng 只是位置上下文。来源 URL 在 API 里多为 Google redirect，不是原始链接。UI 用选工具、校验接地、展示来源与可选二次核对来降幻觉——均不能等同于事实保证。**
+
+---
+
+## 8. SSE 流式、多模态 GCS、count-tokens
+
+本 demo 已支持三项企业常用能力。官方参考：
+
+| 能力 | 本仓库入口 | 官方文档 |
+|------|------------|----------|
+| **SSE 流式** | CLI `--stream`；`POST /ask/stream`；`grounded_ask_stream()` | [流式生成](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/send-chat-prompts-gemini#stream-responses) · [generate_content_stream](https://googleapis.github.io/python-genai/genai.html#genai.models.Models.generate_content_stream) · [streamGenerateContent REST](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#streamGenerateContent) |
+| **多模态 GCS** | CLI `--gcs`；Web「GCS 对象」；`.env` `GCS_BUCKET` / `GCS_PREFIX` | [多模态 GCS URI](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/send-multimodal-prompts#gcs) · [PDF 理解](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/document-understanding) · [图片理解](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/image-understanding) |
+| **count-tokens** | CLI `--count-tokens`；`POST /count-tokens`；`count_tokens_for_request()` | [Count Tokens](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/get-token-count) · [SDK count_tokens](https://googleapis.github.io/python-genai/genai.html#genai.models.Models.count_tokens) · [定价](https://cloud.google.com/vertex-ai/generative-ai/pricing) |
+
+### 8.1 SSE 事件格式
+
+`POST /ask/stream` 返回 `text/event-stream`，事件类型：
+
+| event | 含义 |
+|-------|------|
+| `text_delta` | 回答文本增量 `{"text":"..."}` |
+| `grounding` | `grounding_chunks` / `webSearchQueries` / `imageSearchQueries` / `groundingSupports` / Suggestions 快照 |
+| `usage` | `usage_metadata`（`prompt_token_count`、`candidates_token_count`、`total_token_count` 等） |
+| `done` | 流结束摘要 `status` / 全文 / 最终 grounding & usage |
+| `elapsed` | 服务端耗时 ms |
+| `error` | 异常信息 |
+
+流式模式**不做**「缺 metadata 重试」（避免双次流式请求）；普通 `POST /ask` 仍支持重试。
+
+**Web UI 展示差异：** 流式过程中为**纯文本 + 光标**（逐字打出）；收到 `done` 且存在 `groundingSupports` 后，前端才套用与「发送」相同的引用高亮，并展示检索词 / 来源。流式开始时也会隐藏上一次「发送」的结果区，避免混淆。
+
+### 8.2 多模态 + Grounding（同一轮请求）
+
+Web UI：**在问题框下「添加附件」→ 输入文字 → 发送**。附件在发送时自动上传 GCS，与文字、Search/Maps grounding **同一轮** `generate_content`：
+
+```text
+contents = [Part(PDF/图片 gs://...), ..., "你的问题..."]
+config   = { tools: [googleSearch 或 googleMaps], ... }
+```
+
+**可以多模态 + grounding 同时使用。** 例如：「根据这份 datasheet，用网页搜索核对最新价格」——模型既读 PDF，又触发 Search grounding，响应里仍可有 `grounding_metadata`（来源、引用高亮）。
+
+| 能力 | 说明 |
+|------|------|
+| 附件 + Search | 读文档 + 搜网核实 / 补充 |
+| 附件 + Maps | 读图片/文档 + 查地图地点（较少见，但 API 允许） |
+| 引用高亮 | grounding 针对**回答中来自搜索/地图的句子**；附件内容本身不生成 web chunk |
+
+官方：[多模态 GCS](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/send-multimodal-prompts#gcs) · [Grounding overview](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/overview) · [Function calling / tools 与多模态](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/function-calling)
+
+上传实现：`POST /upload` → `build_user_contents()` 把 `gs://` URI 与问题文本拼成 `contents`。
+
+### 8.3 count-tokens 与实际用量
+
+| 时机 | API | 返回什么 |
+|------|-----|----------|
+| **发送前** | `count_tokens` | 仅**输入** token（问题 + 附件 + tools 配置） |
+| **发送后** | `usage_metadata` | **实际** prompt / candidates / total（流式最后一帧也有） |
+
+```bash
+python demo_grounded_search.py "问题" --count-tokens   # 只看输入
+python demo_grounded_search.py "问题" --stream         # 流式最后一帧带 usage
+```
+
+**不需要手填「预估输出 token」。** 输出 token 只有模型生成结束后才知道；费用估算应基于 `usage_metadata`，在 Web UI 结果区或流式 `[usage 实际]` 日志中查看。
+
+可选：`.env` 设置 `GEMINI_PRICE_INPUT_PER_MTOK` / `GEMINI_PRICE_OUTPUT_PER_MTOK`，发送后自动换算实际美元费用。
+
+### 8.4 代码对应
+
+| 能力 | 函数 | Web 路由 |
+|------|------|----------|
+| 流式 | `grounded_ask_stream` / `format_sse` | `POST /ask/stream` |
+| GCS 多模态 | `build_user_contents` / `resolve_gcs_uri` | 表单 `gcs_paths` |
+| count-tokens | `count_tokens_for_request` / `estimate_cost_usd` | `POST /count-tokens` |
+
+---
+
+## 9. Grounding 来源 URL 与 redirect
+
+### 9.1 现象
+
+`groundingChunks` 中的 URL 常为：
+
+```text
+https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ...
+```
+
+而非 `https://en.wikipedia.org/...` 等原始地址。适用于：
+
+- 网页 Search：`chunk.web.uri`
+- Image Search：`chunk.image.source_uri`、`chunk.image.image_uri`
+
+官方文档写明 Image 来源 **“are returned as redirect URLs”**（[§ Image Search Response](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn#grounding-with-google-image-search)）。
+
+### 9.2 Vertex vs Gemini API
+
+| 问题 | 答案 |
+|------|------|
+| 只有 Vertex 才 redirect 吗？ | **否。** Gemini Developer API（API Key）同样返回 `vertexaisearch.cloud.google.com` redirect。 |
+| API 有 `original_uri` 字段吗？ | **目前没有。** 社区有 [功能请求](https://discuss.ai.google.dev/t/feature-request-provide-actual-source-urls-in-grounding-metadata/107352)。 |
+| `chunk.web.domain` 能用吗？ | 有时有域名提示，**不是**完整 URL。 |
+| 和 Perplexity 等对比？ | 别家多为搜索/答案产品直接暴露 citation URL；Google Search grounding 走统一 redirect 网关（归因、合规、计费）。 |
+
+### 9.3 本 demo 的做法
+
+| 方式 | 说明 |
+|------|------|
+| **展示 redirect** | 默认：链接即 API 返回值，合规可点击 |
+| **解析最终 URL** | 勾选「解析 grounding redirect」或 CLI `--resolve-redirects`；`redirect_resolve.py` 用 `certifi` 做 HTTPS，跟随 `Location` |
+| **不要信正文里的 URL** | 模型可能在文字里写 Markdown 假链接，必须以 `groundingChunks` 为准 |
+
+环境变量：`.env` 中 `RESOLVE_GROUNDING_REDIRECTS=true` 可默认开启解析。
+
+---
+
+## 10. 官方文档索引
+
+### 10.1 Grounding 产品与 API
+
+| # | 文档 | 说明 |
+|---|------|------|
+| 1 | [Grounding overview](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/overview) | 总览：Search / Maps / 元数据 |
+| 2 | [Grounding with Google Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn) | 网页 Search、`exclude_domains`、Suggestions |
+| 3 | [§ Image Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn#grounding-with-google-image-search) | `imageSearch`、`source_uri` / `image_uri`、redirect |
+| 4 | [§ Response（Search）](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn#response) | `groundingMetadata` 字段说明 |
+| 5 | [Grounding with Google Maps](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-maps) | `googleMaps`、地点数据 |
+| 6 | [GroundingMetadata（REST）](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingMetadata) | `webSearchQueries`、`groundingChunks`、`groundingSupports` |
+| 7 | [GroundingChunk（REST）](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingChunk) | `web` / `maps` / `image` 块结构 |
+
+### 10.2 Vertex AI 生成与多模态
+
+| # | 文档 | 说明 |
+|---|------|------|
+| 8 | [Generate content](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#generateContent) | `generateContent` REST |
+| 9 | [Stream generate content](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#streamGenerateContent) | 流式 REST |
+| 10 | [Send chat prompts (stream)](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/send-chat-prompts-gemini#stream-responses) | 流式概念与示例 |
+| 11 | [Multimodal prompts (GCS)](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/send-multimodal-prompts#gcs) | `gs://` 输入 |
+| 12 | [Document understanding (PDF)](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/document-understanding) | PDF 附件 |
+| 13 | [Image understanding](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/image-understanding) | 图片输入 |
+| 14 | [Count tokens](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/get-token-count) | 输入 token 统计 |
+| 15 | [Function calling & tools](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/function-calling) | `tools` 与多模态同请求 |
+| 16 | [Vertex AI pricing](https://cloud.google.com/vertex-ai/generative-ai/pricing) | Token 定价 |
+
+### 10.3 Python SDK
+
+| # | 文档 | 说明 |
+|---|------|------|
+| 17 | [google-genai 文档](https://googleapis.github.io/python-genai/) | Client、`GenerateContentConfig` |
+| 18 | [Models.generate_content](https://googleapis.github.io/python-genai/genai.html#genai.models.Models.generate_content) | 同步生成 |
+| 19 | [Models.generate_content_stream](https://googleapis.github.io/python-genai/genai.html#genai.models.Models.generate_content_stream) | 流式 |
+| 20 | [Models.count_tokens](https://googleapis.github.io/python-genai/genai.html#genai.models.Models.count_tokens) | count-tokens |
+| 21 | [GoogleSearch / ImageSearch types](https://googleapis.github.io/python-genai/genai.html#genai.types.GoogleSearch) | `search_types` 配置 |
+
+### 10.4 模型与限制
+
+| # | 文档 | 说明 |
+|---|------|------|
+| 22 | [Gemini models](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini) | 2.5 / 3.x 模型列表 |
+| 23 | [Grounding support by model](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/overview) | 哪些模型支持 grounding |
+
+### 10.5 社区参考（非官方承诺）
+
+| # | 链接 | 说明 |
+|---|------|------|
+| 24 | [Feature: actual source URLs](https://discuss.ai.google.dev/t/feature-request-provide-actual-source-urls-in-grounding-metadata/107352) | Gemini API 同样只有 redirect |
+| 25 | [python-genai #1512](https://github.com/googleapis/python-genai/issues/1512) | 维护者确认无 original URI 字段 |
+
+---
+
+## 附录：章节索引
+
+| 章节 | 内容 |
+|------|------|
+| [§1](#1-grounding-是什么) | 概念与四种模式 |
+| [§2](#2-maps-grounding--search-的地理偏置) | latLng vs Maps |
+| [§3](#3-最小调用示例) | 代码示例 |
+| [§4](#4-ui-上的降幻觉手段必须看清能做什么不能做什么) | UI 降幻觉对照 |
+| [§5](#5-读响应时看什么) | 响应字段 |
+| [§6](#6-和本仓库代码--ui-对应) | 代码 / UI 映射 |
+| [§8](#8-sse-流式多模态-gcs-count-tokens) | 流式、GCS、Token |
+| [§9](#9-grounding-来源-url-与-redirect) | redirect URL 说明 |
+| [§10](#10-官方文档索引) | 官方文档全表 |
+

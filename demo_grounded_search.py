@@ -3,8 +3,13 @@
 
 Targets Gemini 2.5+ behavior:
 - Google Search grounding (public web)
+- Google Image Search grounding (preview; searchTypes.imageSearch)
+- optional hybrid web + image search
 - optional Google Maps grounding (places / local data)
 - optional latLng context (NOT the same as Maps grounding)
+- SSE streaming (grounding chunks + usage_metadata)
+- Vertex GCS multimodal input (PDF / image via gs://)
+- count-tokens + optional cost estimate
 - no confidenceScores (empty on 2.5+; ignored)
 
 Docs:
@@ -16,21 +21,47 @@ Docs:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Iterator, Literal, Optional
 
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from redirect_resolve import enrich_sources, env_resolve_redirects_default
+
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
 
-GroundingMode = Literal["search", "maps"]
+GroundingMode = Literal["search", "image_search", "search_hybrid", "maps"]
+
+DEFAULT_IMAGE_GEN_MODEL = "gemini-3.1-flash-image"
+DEFAULT_IMAGE_GEN_QUESTION = (
+    "请使用 Google 图片搜索查找真实视觉参考，然后生成一张写实风格照片："
+    "墨西哥城阿兹特克体育场（Estadio Azteca）在 2026 世界杯期间的日间外观。"
+    "先用 1–2 句说明参考了哪些视觉特征，再输出图片。"
+)
+
+MIME_BY_EXT: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".txt": "text/plain",
+    ".csv": "text/csv",
+    ".json": "application/json",
+}
 
 SYSTEM_SEARCH = """你是注重事实准确性的助手。必须遵守：
 1. 优先且仅依据本次 Google 搜索检索到的网页信息回答事实性问题。
@@ -39,6 +70,7 @@ SYSTEM_SEARCH = """你是注重事实准确性的助手。必须遵守：
 4. 区分事实与推断；推断须标明。
 5. 若用户消息中提供了「终端用户位置（lat,lng）」，必须把它当作「这附近 / 本地」的参考位置，
    不要声称无法获取地理位置；搜索与回答应围绕该坐标附近展开。
+6. 若用户附带了文档/图片，请结合附件内容与本次 Google 搜索检索结果作答；二者冲突时分别说明。
 """
 
 SYSTEM_MAPS = """你是本地生活助手。必须遵守：
@@ -47,7 +79,82 @@ SYSTEM_MAPS = """你是本地生活助手。必须遵守：
 3. 不要编造不存在的门店或电话。
 4. 若用户消息中提供了「终端用户位置（lat,lng）」，必须当作「这附近」的坐标，
    不要声称无法获取地理位置。
+5. 若用户附带了文档/图片，请结合附件内容与本次 Google Maps 检索结果作答。
 """
+
+SYSTEM_IMAGE_GEN = """你是 Gemini 3.1 Flash Image 生图助手，已启用 Google 图片搜索接地（imageSearch）。
+
+工作流程（必须遵守）：
+1. 收到生图描述后，先通过 Google 图片搜索检索真实世界的视觉参考（地标外观、建筑细节、环境光线等）。
+2. 用 1–3 句中文说明参考了哪些视觉元素（不要说「无法搜索」）。
+3. 输出一张符合描述的生成图片（IMAGE 输出，不要只给文字列表或 Markdown 假链接）。
+4. 检索不到合适参考时如实说明，仍尽量生成；禁止编造虚假 URL。
+"""
+
+IMAGE_GEN_RETRY_SUFFIX = (
+    "\n\n[系统补强] 必须先调用 Google 图片搜索获取视觉参考，"
+    "然后输出一张图片（response 含 IMAGE）。"
+    "禁止只输出 Markdown 表格、image_N.png 占位符或假链接。"
+)
+
+
+def is_image_generation_mode(mode: GroundingMode) -> bool:
+    return mode == "image_search"
+
+
+def default_model_for_mode(mode: GroundingMode) -> str:
+    if is_image_generation_mode(mode):
+        return _env("IMAGE_GEN_MODEL", DEFAULT_IMAGE_GEN_MODEL)
+    return _env("GEMINI_MODEL", "gemini-2.5-flash")
+
+
+def default_question_for_mode(mode: GroundingMode) -> str:
+    if mode == "maps":
+        return "这附近有什么口碑好的咖啡馆？"
+    if is_image_generation_mode(mode):
+        return DEFAULT_IMAGE_GEN_QUESTION
+    if mode == "search_hybrid":
+        return "2026 年世界杯主办城市有哪些？请同时给出相关体育场示意图的来源。"
+    return "美国下一次可见的日全食是什么时候？"
+
+
+def extract_text_from_candidate(candidate: Any) -> str:
+    content = getattr(candidate, "content", None)
+    if content is None:
+        return ""
+    texts: list[str] = []
+    for part in getattr(content, "parts", None) or []:
+        text = getattr(part, "text", None)
+        if text:
+            texts.append(text)
+    return "\n".join(texts).strip()
+
+
+def extract_generated_images(candidate: Any) -> list[dict[str, Any]]:
+    content = getattr(candidate, "content", None)
+    if content is None:
+        return []
+    images: list[dict[str, Any]] = []
+    for part in getattr(content, "parts", None) or []:
+        inline = getattr(part, "inline_data", None)
+        if inline is None:
+            continue
+        raw = getattr(inline, "data", None)
+        if not raw:
+            continue
+        mime = getattr(inline, "mime_type", None) or "image/png"
+        if isinstance(raw, bytes):
+            b64 = base64.b64encode(raw).decode("ascii")
+        else:
+            b64 = str(raw)
+        images.append(
+            {
+                "index": len(images),
+                "mime_type": mime,
+                "data_uri": f"data:{mime};base64,{b64}",
+            }
+        )
+    return images
 
 
 def _with_location_hint(question: str, lat_lng: Optional[types.LatLng]) -> str:
@@ -88,9 +195,12 @@ class GroundedResult:
     text: str = ""
     model: str = ""
     web_search_queries: list[str] = field(default_factory=list)
+    image_search_queries: list[str] = field(default_factory=list)
     sources: list[dict[str, Any]] = field(default_factory=list)
     supports: list[GroundedSpan] = field(default_factory=list)
     search_suggestions_html: Optional[str] = None
+    generated_images: list[dict[str, Any]] = field(default_factory=list)
+    demo_kind: str = "text_qa"  # text_qa | image_gen
     warning: Optional[str] = None
     raw_usage: Optional[dict[str, Any]] = None
 
@@ -124,6 +234,78 @@ def make_lat_lng(latitude: float, longitude: float) -> types.LatLng:
 def _parse_exclude_domains() -> list[str]:
     raw = _env("EXCLUDE_DOMAINS")
     return [d.strip() for d in raw.split(",") if d.strip()] if raw else []
+
+
+def guess_mime_type(path_or_uri: str) -> str:
+    suffix = Path(path_or_uri.split("?", 1)[0].split("#", 1)[0]).suffix.lower()
+    return MIME_BY_EXT.get(suffix, "application/octet-stream")
+
+
+def resolve_gcs_uri(path_or_uri: str) -> str:
+    """Resolve a GCS object path or full gs:// URI for Vertex multimodal input."""
+    raw = path_or_uri.strip()
+    if not raw:
+        raise ValueError("Empty GCS path")
+    if raw.startswith("gs://"):
+        return raw
+    bucket = _env("GCS_BUCKET")
+    if not bucket:
+        raise RuntimeError(
+            "Relative GCS path requires GCS_BUCKET in .env (or pass a full gs:// URI)."
+        )
+    prefix = _env("GCS_PREFIX").strip("/")
+    object_path = raw.lstrip("/")
+    if prefix:
+        object_path = f"{prefix}/{object_path}" if not object_path.startswith(prefix + "/") else object_path
+    return f"gs://{bucket}/{object_path}"
+
+
+def parse_gcs_paths_csv(raw: str) -> list[str]:
+    """Parse comma/newline separated GCS paths or gs:// URIs."""
+    if not raw:
+        return []
+    paths: list[str] = []
+    for chunk in raw.replace("\n", ",").split(","):
+        item = chunk.strip()
+        if item and item not in paths:
+            paths.append(item)
+    return paths
+
+
+def build_multimodal_parts(gcs_paths: list[str]) -> list[types.Part]:
+    parts: list[types.Part] = []
+    for path in gcs_paths:
+        uri = resolve_gcs_uri(path)
+        parts.append(
+            types.Part.from_uri(file_uri=uri, mime_type=guess_mime_type(path))
+        )
+    return parts
+
+
+def _with_multimodal_hint(question: str, gcs_paths: Optional[list[str]]) -> str:
+    if not gcs_paths:
+        return question
+    return (
+        f"{question}\n\n"
+        f"[用户附件] 本次附带 {len(gcs_paths)} 个文件（PDF/图片/音视频等）。"
+        "请结合附件内容与本次工具检索结果作答。"
+    )
+
+
+def build_user_contents(
+    question: str,
+    *,
+    lat_lng: Optional[types.LatLng] = None,
+    gcs_paths: Optional[list[str]] = None,
+) -> list[Any]:
+    """Build generate_content contents: optional GCS files + text prompt."""
+    text = _with_location_hint(question, lat_lng)
+    text = _with_multimodal_hint(text, gcs_paths)
+    parts: list[Any] = []
+    for part in build_multimodal_parts(gcs_paths or []):
+        parts.append(part)
+    parts.append(text)
+    return parts
 
 
 def parse_exclude_domains_csv(raw: str) -> list[str]:
@@ -172,6 +354,35 @@ def _parse_blocking_confidence() -> Optional[types.PhishBlockThreshold]:
         raise RuntimeError(f"BLOCKING_CONFIDENCE must be one of: {allowed}") from exc
 
 
+def _google_search_tool(
+    mode: GroundingMode,
+    *,
+    exclude_domains: Optional[list[str]] = None,
+) -> types.GoogleSearch:
+    """Build GoogleSearch tool for web, image, or hybrid search types."""
+    if mode == "image_search":
+        return types.GoogleSearch(
+            search_types=types.SearchTypes(
+                image_search=types.ImageSearch(),
+            ),
+        )
+    if mode == "search_hybrid":
+        domains = exclude_domains if exclude_domains is not None else _parse_exclude_domains()
+        return types.GoogleSearch(
+            search_types=types.SearchTypes(
+                web_search=types.WebSearch(),
+                image_search=types.ImageSearch(),
+            ),
+            exclude_domains=domains or None,
+            blocking_confidence=_parse_blocking_confidence(),
+        )
+    domains = exclude_domains if exclude_domains is not None else _parse_exclude_domains()
+    return types.GoogleSearch(
+        exclude_domains=domains or None,
+        blocking_confidence=_parse_blocking_confidence(),
+    )
+
+
 def _build_config(
     *,
     mode: GroundingMode,
@@ -195,16 +406,18 @@ def _build_config(
     if mode == "maps":
         tools = [types.Tool(google_maps=types.GoogleMaps())]
         system = SYSTEM_MAPS
+    elif mode == "image_search":
+        tools = [types.Tool(google_search=_google_search_tool(mode))]
+        system = SYSTEM_IMAGE_GEN
+        return types.GenerateContentConfig(
+            system_instruction=system,
+            temperature=1.0,
+            tools=tools,
+            tool_config=tool_config,
+            response_modalities=["TEXT", "IMAGE"],
+        )
     else:
-        domains = exclude_domains if exclude_domains is not None else _parse_exclude_domains()
-        tools = [
-            types.Tool(
-                google_search=types.GoogleSearch(
-                    exclude_domains=domains or None,
-                    blocking_confidence=_parse_blocking_confidence(),
-                )
-            )
-        ]
+        tools = [types.Tool(google_search=_google_search_tool(mode, exclude_domains=exclude_domains))]
         system = SYSTEM_SEARCH
 
     return types.GenerateContentConfig(
@@ -235,50 +448,27 @@ def _chunk_to_dict(chunk: Any, index: int) -> Optional[dict[str, Any]]:
             "place_id": getattr(maps, "place_id", None),
             "domain": None,
         }
+    image = getattr(chunk, "image", None)
+    if image is not None:
+        source_uri = getattr(image, "source_uri", None)
+        image_uri = getattr(image, "image_uri", None)
+        return {
+            "index": index,
+            "kind": "image",
+            "source_uri": source_uri,
+            "image_uri": image_uri,
+            "uri": source_uri or image_uri,
+            "title": getattr(image, "title", None),
+            "domain": getattr(image, "domain", None),
+        }
     return None
 
 
-def parse_grounding(
-    response: types.GenerateContentResponse,
-    *,
-    model: str,
-    mode: GroundingMode,
-) -> GroundedResult:
-    text = (response.text or "").strip()
-    usage = None
-    if response.usage_metadata is not None:
-        usage = {
-            "prompt_token_count": getattr(response.usage_metadata, "prompt_token_count", None),
-            "candidates_token_count": getattr(
-                response.usage_metadata, "candidates_token_count", None
-            ),
-            "total_token_count": getattr(response.usage_metadata, "total_token_count", None),
-        }
-
-    if not response.candidates:
-        return GroundedResult(
-            status="error",
-            mode=mode,
-            text=text,
-            model=model,
-            warning="No candidates in response",
-            raw_usage=usage,
-        )
-
-    gm = getattr(response.candidates[0], "grounding_metadata", None)
-    if gm is None:
-        return GroundedResult(
-            status="ungrounded",
-            mode=mode,
-            text=text,
-            model=model,
-            warning=(
-                "Missing grounding_metadata. Model may not have used the grounding tool."
-            ),
-            raw_usage=usage,
-        )
-
+def _parse_grounding_metadata(
+    gm: Any,
+) -> tuple[list[str], list[str], list[dict[str, Any]], list[GroundedSpan], Optional[str]]:
     queries = list(getattr(gm, "web_search_queries", None) or [])
+    image_queries = list(getattr(gm, "image_search_queries", None) or [])
     sources: list[dict[str, Any]] = []
     for i, chunk in enumerate(getattr(gm, "grounding_chunks", None) or []):
         item = _chunk_to_dict(chunk, i)
@@ -299,19 +489,305 @@ def parse_grounding(
 
     entry = getattr(gm, "search_entry_point", None)
     suggestions = getattr(entry, "rendered_content", None) if entry else None
+    return queries, image_queries, sources, supports, suggestions
 
+
+def parse_grounding(
+    response: types.GenerateContentResponse,
+    *,
+    model: str,
+    mode: GroundingMode,
+) -> GroundedResult:
+    usage = None
+    if response.usage_metadata is not None:
+        usage = usage_metadata_to_dict(response.usage_metadata)
+
+    if not response.candidates:
+        text = (response.text or "").strip()
+        return GroundedResult(
+            status="error",
+            mode=mode,
+            demo_kind="image_gen" if is_image_generation_mode(mode) else "text_qa",
+            text=text,
+            model=model,
+            warning="No candidates in response",
+            raw_usage=usage,
+        )
+
+    candidate = response.candidates[0]
+    text = extract_text_from_candidate(candidate) or (response.text or "").strip()
+    generated_images = (
+        extract_generated_images(candidate) if is_image_generation_mode(mode) else []
+    )
+    gm = getattr(candidate, "grounding_metadata", None)
+
+    if gm is not None:
+        queries, image_queries, sources, supports, suggestions = _parse_grounding_metadata(gm)
+        return GroundedResult(
+            status="ok",
+            mode=mode,
+            demo_kind="image_gen" if is_image_generation_mode(mode) else "text_qa",
+            text=text,
+            model=model,
+            web_search_queries=queries,
+            image_search_queries=image_queries,
+            sources=sources,
+            supports=supports,
+            search_suggestions_html=suggestions,
+            generated_images=generated_images,
+            warning=None,
+            raw_usage=usage,
+        )
+
+    if is_image_generation_mode(mode) and generated_images:
+        return GroundedResult(
+            status="ok",
+            mode=mode,
+            demo_kind="image_gen",
+            text=text,
+            model=model,
+            generated_images=generated_images,
+            warning=(
+                "已生成图片，但 API 未返回 grounding_metadata。"
+                "参考图来源（imageSearchQueries / groundingChunks）可能为空——"
+                "这是 image 生图模型的常见行为，不代表未调用图片搜索。"
+            ),
+            raw_usage=usage,
+        )
+
+    warning = "Missing grounding_metadata. Model may not have used the grounding tool."
+    if is_image_generation_mode(mode):
+        warning = (
+            "未生成图片，且无 grounding_metadata。"
+            "请确认模型为 gemini-3.1-flash-image，并描述要「生成」的画面而非「列出图片来源」。"
+        )
     return GroundedResult(
-        status="ok",
+        status="ungrounded",
         mode=mode,
+        demo_kind="image_gen" if is_image_generation_mode(mode) else "text_qa",
         text=text,
         model=model,
-        web_search_queries=queries,
-        sources=sources,
-        supports=supports,
-        search_suggestions_html=suggestions,
-        warning=None,
+        generated_images=generated_images,
+        warning=warning,
         raw_usage=usage,
     )
+
+
+def usage_metadata_to_dict(usage: Any) -> dict[str, Any]:
+    return {
+        "prompt_token_count": getattr(usage, "prompt_token_count", None),
+        "candidates_token_count": getattr(usage, "candidates_token_count", None),
+        "total_token_count": getattr(usage, "total_token_count", None),
+        "thoughts_token_count": getattr(usage, "thoughts_token_count", None),
+        "cached_content_token_count": getattr(usage, "cached_content_token_count", None),
+    }
+
+
+def grounding_metadata_to_dict(gm: Any) -> dict[str, Any]:
+    sources: list[dict[str, Any]] = []
+    for i, chunk in enumerate(getattr(gm, "grounding_chunks", None) or []):
+        item = _chunk_to_dict(chunk, i)
+        if item:
+            sources.append(item)
+
+    supports: list[dict[str, Any]] = []
+    for s in getattr(gm, "grounding_supports", None) or []:
+        segment = getattr(s, "segment", None)
+        supports.append(
+            {
+                "text": getattr(segment, "text", None) or "",
+                "start_index": getattr(segment, "start_index", None),
+                "end_index": getattr(segment, "end_index", None),
+                "chunk_indices": list(getattr(s, "grounding_chunk_indices", None) or []),
+            }
+        )
+
+    entry = getattr(gm, "search_entry_point", None)
+    suggestions = getattr(entry, "rendered_content", None) if entry else None
+    return {
+        "web_search_queries": list(getattr(gm, "web_search_queries", None) or []),
+        "image_search_queries": list(getattr(gm, "image_search_queries", None) or []),
+        "sources": sources,
+        "supports": supports,
+        "search_suggestions_html": suggestions,
+    }
+
+
+def format_sse(event: str, data: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _env_float(name: str) -> Optional[float]:
+    raw = _env(name)
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def estimate_cost_usd(*, input_tokens: int, output_tokens: int = 0) -> Optional[dict[str, Any]]:
+    in_price = _env_float("GEMINI_PRICE_INPUT_PER_MTOK")
+    out_price = _env_float("GEMINI_PRICE_OUTPUT_PER_MTOK")
+    if in_price is None and out_price is None:
+        return None
+    in_cost = (input_tokens / 1_000_000) * (in_price or 0.0)
+    out_cost = (output_tokens / 1_000_000) * (out_price or 0.0)
+    return {
+        "input_usd": round(in_cost, 6),
+        "output_usd": round(out_cost, 6),
+        "total_usd": round(in_cost + out_cost, 6),
+        "currency": "USD",
+    }
+
+
+def cost_from_usage(usage: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """Compute USD cost from actual usage_metadata fields."""
+    if not usage:
+        return None
+    prompt = int(usage.get("prompt_token_count") or 0)
+    output = int(usage.get("candidates_token_count") or 0)
+    thoughts = int(usage.get("thoughts_token_count") or 0)
+    output_total = output + thoughts
+    cost = estimate_cost_usd(input_tokens=prompt, output_tokens=output_total)
+    if not cost:
+        return None
+    cost["prompt_token_count"] = prompt
+    cost["candidates_token_count"] = output
+    cost["thoughts_token_count"] = thoughts or None
+    cost["total_token_count"] = usage.get("total_token_count")
+    cost["note"] = "Based on actual usage_metadata from the API response."
+    return cost
+
+
+def count_tokens_for_request(
+    client: genai.Client,
+    *,
+    model: str,
+    question: str,
+    mode: GroundingMode = "search",
+    lat_lng: Optional[types.LatLng] = None,
+    exclude_domains: Optional[list[str]] = None,
+    gcs_paths: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    effective_lat_lng = lat_lng if lat_lng is not None else _parse_lat_lng()
+    contents = build_user_contents(
+        question, lat_lng=effective_lat_lng, gcs_paths=gcs_paths
+    )
+    gen_config = _build_config(
+        mode=mode,
+        lat_lng=effective_lat_lng,
+        exclude_domains=exclude_domains,
+    )
+    count_config = types.CountTokensConfig(
+        system_instruction=gen_config.system_instruction,
+        tools=gen_config.tools,
+    )
+    if is_image_generation_mode(mode) and getattr(gen_config, "response_modalities", None):
+        count_config = types.CountTokensConfig(
+            system_instruction=gen_config.system_instruction,
+            tools=gen_config.tools,
+            generation_config=types.GenerationConfig(
+                response_modalities=gen_config.response_modalities,
+            ),
+        )
+    response = client.models.count_tokens(
+        model=model,
+        contents=contents,
+        config=count_config,
+    )
+    input_tokens = getattr(response, "total_tokens", None)
+    if input_tokens is None:
+        input_tokens = getattr(response, "total_token_count", None)
+
+    resolved = [resolve_gcs_uri(p) for p in (gcs_paths or [])]
+    result: dict[str, Any] = {
+        "model": model,
+        "mode": mode,
+        "input_tokens": input_tokens,
+        "gcs_paths": gcs_paths or [],
+        "resolved_gcs_uris": resolved,
+        "note": (
+            "count_tokens only measures input. "
+            "Actual total usage is in usage_metadata after generate_content."
+        ),
+    }
+    if input_tokens is not None:
+        input_cost = estimate_cost_usd(input_tokens=int(input_tokens), output_tokens=0)
+        if input_cost:
+            result["input_cost_usd"] = {
+                "input_usd": input_cost["input_usd"],
+                "currency": "USD",
+                "note": "Input-only cost; output billed after the request completes.",
+            }
+    return result
+
+
+def grounded_ask_stream(
+    client: genai.Client,
+    question: str,
+    *,
+    model: str,
+    mode: GroundingMode = "search",
+    lat_lng: Optional[types.LatLng] = None,
+    exclude_domains: Optional[list[str]] = None,
+    gcs_paths: Optional[list[str]] = None,
+) -> Iterator[dict[str, Any]]:
+    """Yield SSE-friendly events: text_delta, grounding, usage, done."""
+    if is_image_generation_mode(mode):
+        raise RuntimeError(
+            "Image Search 生图模式不支持流式：请使用「发送」以获取 inline 图片与 grounding 元数据。"
+        )
+    effective_lat_lng = lat_lng if lat_lng is not None else _parse_lat_lng()
+    config = _build_config(
+        mode=mode,
+        lat_lng=effective_lat_lng,
+        exclude_domains=exclude_domains,
+    )
+    contents = build_user_contents(
+        question, lat_lng=effective_lat_lng, gcs_paths=gcs_paths
+    )
+
+    accumulated_text = ""
+    last_grounding: Optional[dict[str, Any]] = None
+    last_usage: Optional[dict[str, Any]] = None
+
+    for chunk in client.models.generate_content_stream(
+        model=model,
+        contents=contents,
+        config=config,
+    ):
+        if chunk.text:
+            accumulated_text += chunk.text
+            yield {"event": "text_delta", "data": {"text": chunk.text}}
+
+        if chunk.candidates:
+            gm = getattr(chunk.candidates[0], "grounding_metadata", None)
+            if gm is not None:
+                gm_dict = grounding_metadata_to_dict(gm)
+                if gm_dict != last_grounding:
+                    last_grounding = gm_dict
+                    yield {"event": "grounding", "data": gm_dict}
+
+        if chunk.usage_metadata is not None:
+            usage = usage_metadata_to_dict(chunk.usage_metadata)
+            if usage != last_usage:
+                last_usage = usage
+                yield {"event": "usage", "data": usage}
+
+    status = "ok" if last_grounding else "ungrounded"
+    yield {
+        "event": "done",
+        "data": {
+            "status": status,
+            "model": model,
+            "mode": mode,
+            "text": accumulated_text,
+            "grounding": last_grounding,
+            "usage": last_usage,
+        },
+    }
 
 
 def grounded_ask(
@@ -323,6 +799,7 @@ def grounded_ask(
     max_retries: int = 1,
     lat_lng: Optional[types.LatLng] = None,
     exclude_domains: Optional[list[str]] = None,
+    gcs_paths: Optional[list[str]] = None,
 ) -> GroundedResult:
     effective_lat_lng = lat_lng if lat_lng is not None else _parse_lat_lng()
     config = _build_config(
@@ -332,17 +809,28 @@ def grounded_ask(
     )
     last: Optional[GroundedResult] = None
 
-    base = _with_location_hint(question, effective_lat_lng)
-    prompts = [base]
+    prompts = [question]
     if max_retries > 0:
-        tool_name = "Google Maps" if mode == "maps" else "Google 搜索"
-        prompts.append(
-            base
-            + f"\n\n[系统补强] 请务必使用 {tool_name} 工具检索后再回答；"
-            "若无法检索到可靠信息，请明确说明未找到，不要猜测。"
-        )
+        if mode == "image_search":
+            prompts.append(question + IMAGE_GEN_RETRY_SUFFIX)
+        elif mode == "maps":
+            prompts.append(
+                question
+                + "\n\n[系统补强] 请务必使用 Google Maps 工具检索后再回答；"
+                "若无法检索到可靠信息，请明确说明未找到，不要猜测。"
+            )
+        else:
+            tool_name = "Google 网页+图片搜索" if mode == "search_hybrid" else "Google 搜索"
+            prompts.append(
+                question
+                + f"\n\n[系统补强] 请务必使用 {tool_name} 工具检索后再回答；"
+                "若无法检索到可靠信息，请明确说明未找到，不要猜测。"
+            )
 
-    for attempt, contents in enumerate(prompts[: max_retries + 1]):
+    for attempt, prompt in enumerate(prompts[: max_retries + 1]):
+        contents = build_user_contents(
+            prompt, lat_lng=effective_lat_lng, gcs_paths=gcs_paths
+        )
         response = client.models.generate_content(
             model=model,
             contents=contents,
@@ -397,18 +885,43 @@ def print_report(result: GroundedResult, *, verify_text: Optional[str] = None) -
     print("-" * 72)
     print("ANSWER:")
     print(result.text or "(empty)")
+    if result.generated_images:
+        print("-" * 72)
+        print(f"GENERATED IMAGES: {len(result.generated_images)}")
+        for img in result.generated_images:
+            print(f"  [{img.get('index')}] {img.get('mime_type')} ({len(img.get('data_uri', ''))} chars data-uri)")
     print("-" * 72)
-    print("QUERIES:")
+    print("QUERIES (web):")
     for q in result.web_search_queries or ["(none)"]:
         print(f"  - {q}")
+    if result.image_search_queries:
+        print("-" * 72)
+        print("QUERIES (image):")
+        for q in result.image_search_queries:
+            print(f"  - {q}")
     print("-" * 72)
     print("SOURCES:")
     if result.sources:
         for s in result.sources:
-            print(
-                f"  [{s.get('index')}] ({s.get('kind')}) {s.get('title')}\n"
-                f"      {s.get('uri')}"
-            )
+            if s.get("kind") == "image":
+                print(
+                    f"  [{s.get('index')}] (image) {s.get('title')}\n"
+                    f"      source_uri: {s.get('source_uri')}\n"
+                    f"      image_uri:  {s.get('image_uri')}"
+                )
+                resolved = s.get("resolved") or {}
+                for key in ("source_uri", "image_uri"):
+                    r = resolved.get(key)
+                    if r and r.get("final"):
+                        print(f"      {key} (final): {r.get('final')}")
+            else:
+                print(
+                    f"  [{s.get('index')}] ({s.get('kind')}) {s.get('title')}\n"
+                    f"      {s.get('uri')}"
+                )
+                r = (s.get("resolved") or {}).get("uri")
+                if r and r.get("final"):
+                    print(f"      uri (final): {r.get('final')}")
     else:
         print("  (none)")
     print("-" * 72)
@@ -457,9 +970,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=["search", "maps"],
+        choices=["search", "image_search", "search_hybrid", "maps"],
         default="search",
-        help="Grounding tool: googleSearch or googleMaps",
+        help="Grounding: web search, image search, both, or googleMaps",
     )
     parser.add_argument(
         "--model",
@@ -475,11 +988,32 @@ def main(argv: Optional[list[str]] = None) -> int:
         default=_env("EXCLUDE_DOMAINS"),
         help="Comma-separated domains to exclude (Search / Vertex only)",
     )
+    parser.add_argument(
+        "--gcs",
+        default="",
+        help="Comma-separated GCS object paths or gs:// URIs (Vertex multimodal)",
+    )
+    parser.add_argument("--stream", action="store_true", help="SSE stream to stdout")
+    parser.add_argument(
+        "--count-tokens",
+        action="store_true",
+        help="Count input tokens before generation (no output until request completes)",
+    )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--resolve-redirects",
+        action="store_true",
+        help="Follow grounding-api-redirect URLs and print final destinations",
+    )
     args = parser.parse_args(argv)
+    resolve_redirects = args.resolve_redirects or env_resolve_redirects_default()
 
     if args.mode == "maps" and args.question == "美国下一次可见的日全食是什么时候？":
         args.question = "这附近有什么口碑好的咖啡馆？"
+    if args.mode == "image_search" and args.question == "美国下一次可见的日全食是什么时候？":
+        args.question = DEFAULT_IMAGE_GEN_QUESTION
+    if args.mode == "image_search" and args.model == _env("GEMINI_MODEL", "gemini-2.5-flash"):
+        args.model = default_model_for_mode("image_search")
 
     lat_lng = None
     if args.lat is not None or args.lng is not None:
@@ -487,7 +1021,36 @@ def main(argv: Optional[list[str]] = None) -> int:
             raise SystemExit("Provide both --lat and --lng together.")
         lat_lng = make_lat_lng(args.lat, args.lng)
 
+    gcs_paths = parse_gcs_paths_csv(args.gcs or "")
     client = build_client()
+
+    if args.count_tokens:
+        payload = count_tokens_for_request(
+            client,
+            model=args.model,
+            question=args.question,
+            mode=args.mode,  # type: ignore[arg-type]
+            lat_lng=lat_lng,
+            exclude_domains=parse_exclude_domains_csv(args.exclude_domains or ""),
+            gcs_paths=gcs_paths,
+        )
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.stream:
+        for ev in grounded_ask_stream(
+            client,
+            args.question,
+            model=args.model,
+            mode=args.mode,  # type: ignore[arg-type]
+            lat_lng=lat_lng,
+            exclude_domains=parse_exclude_domains_csv(args.exclude_domains or ""),
+            gcs_paths=gcs_paths,
+        ):
+            sys.stdout.write(format_sse(ev["event"], ev["data"]))
+            sys.stdout.flush()
+        return 0
+
     result = grounded_ask(
         client,
         args.question,
@@ -496,7 +1059,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         max_retries=0 if args.no_retry else 1,
         lat_lng=lat_lng,
         exclude_domains=parse_exclude_domains_csv(args.exclude_domains or ""),
+        gcs_paths=gcs_paths,
     )
+
+    if resolve_redirects and result.sources:
+        result.sources = enrich_sources(result.sources, enabled=True)
 
     verify_text = None
     if args.verify and result.status == "ok" and result.sources:
