@@ -262,18 +262,198 @@ types.Tool(
 
 ## 5. 读响应时看什么
 
+`groundingMetadata` 与 `generateContent` **同一次响应**返回，无单独「查检索词」API。官方 REST 定义见 [GroundingMetadata](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingMetadata)。
+
+### 5.1 顶层字段一览
+
+| 官方字段 | 含义 | 本 demo UI |
+|----------|------|------------|
+| `webSearchQueries` | 网页 Search 实际搜词 | 「检索词（webSearchQueries）」 |
+| `imageSearchQueries` | Image Search 视觉检索词 | 「检索词（imageSearchQueries）」 |
+| `retrievalQueries` | 企业 RAG / Vertex AI Search 等检索词 | 「检索词（retrievalQueries）」+ 扩展区 |
+| `groundingChunks` | 来源块数组（见 §5.2） | 「来源（groundingChunks）」 |
+| `groundingSupports` | 回答片段 ↔ 来源索引（见 §5.3） | 引用高亮 + 「引用片段」表 |
+| `searchEntryPoint` | Search Suggestions（须合规展示） | Suggestions 盒子 + 扩展区元数据 |
+| `retrievalMetadata` | 如 dynamic retrieval 分数 | 「groundingMetadata 扩展字段」 |
+| `googleMapsWidgetContextToken` | Maps 小组件上下文 token | 扩展区 |
+| `sourceFlaggingUris` | 来源标记 / 举报 URI | 扩展区 |
+| `grounding_metadata` 是否存在 | 是否真正接地 | UI: `status`（ok / ungrounded） |
+
+### 5.2 `groundingChunks[]` 子类型
+
+| 子字段 | 常用属性 | 说明 |
+|--------|----------|------|
+| `web` | `uri`, `title`, `domain` | 网页来源；`uri` 多为 **redirect**（`vertexaisearch.cloud.google.com`），**无** `original_uri` |
+| `image` | `source_uri`, `image_uri`, `title` | 参考图着陆页 + 图直链，亦多为 redirect |
+| `maps` | `uri`, `title`, `placeId` | Maps POI |
+| `retrievedContext` | `uri`, `title`, `text`, `documentName`, `pageNumber` | 企业语料 / RAG 片段 |
+
+### 5.3 `groundingSupports[]`
+
+| 子字段 | 含义 |
+|--------|------|
+| `segment` | `text` + `startIndex` / `endIndex`（回答中的片段） |
+| `groundingChunkIndices` | 对应 `groundingChunks` 下标 |
+| `confidenceScores` | **Gemini 2.5+ 通常为空**，勿做阈值过滤；旧模型可能有值 |
+
+### 5.4 其他响应部分
+
 | 字段 | 含义 |
 |------|------|
-| `grounding_metadata` 是否存在 | 是否真正接地（UI: status） |
-| `webSearchQueries` | 网页 Search 实际搜词 |
-| `imageSearchQueries` | Image Search 视觉检索词 |
-| `groundingChunks` | 来源（`web` / `image` / `maps`） |
-| `groundingChunks[].web.uri` | 网页来源（多为 **redirect URL**） |
-| `groundingChunks[].image` | `source_uri`（着陆页）+ `image_uri`（图直链），多为 redirect |
-| `groundingSupports` | 哪段回答对应哪些来源（UI: 高亮 + 片段表） |
-| `searchEntryPoint.renderedContent` | Search 建议条（须原样展示） |
-| `inline_data`（Image 生图模式） | 模型生成的图片，在 `content.parts` 中 |
-| `confidenceScores` | **2.5+ 忽略** |
+| `searchEntryPoint.renderedContent` | Search 建议条 HTML（**须原样展示**，勿删改） |
+| `inline_data`（Image 生图） | 生成图片，在 `content.parts` 中（非 groundingMetadata） |
+
+### 5.5 给客户怎么讲
+
+- **检索词** = 模型（或工具）实际发起的查询，在 metadata 里透明可见。  
+- **来源 URL** = API 返回的 redirect，不是站点原始链接；可选 `--resolve-redirects` 解析最终 URL（见 [§9](#9-grounding-来源-url-与-redirect)）。  
+- **扩展字段表 + JSON 快照** = demo 结果区「groundingMetadata 扩展字段」，便于对照官方 schema 做集成。
+
+### 5.6 常见疑点：各字段的意义与产品价值
+
+本节针对集成 / 演示时最常问的几块：**三种检索词为何不同**、**`retrievalQueries` 为何常为空**、**`searchEntryPoint` 是什么**、**引用与来源怎么用**、**redirect 算不算 bug**。
+
+#### 5.6.1 三种「检索词」：搜的是三个不同的世界
+
+| 字段 | 数据源 | 本 demo 何时有值 | 产品价值 |
+|------|--------|------------------|----------|
+| `webSearchQueries` | 公开互联网（Google 网页搜索） | Search / 混合模式，且 grounding 成功 | **可审计**：用户能看到模型实际搜了什么词，而不是黑盒「好像搜过」 |
+| `imageSearchQueries` | Google 图片索引 | Image 生图 / 混合模式 | **生图可信度**：说明生成前查了哪些视觉参考（地标、产品外观等） |
+| `retrievalQueries` | **企业私有语料**（Vertex AI Search、RAG Datastore、Corpus 等） | **本仓库默认无**（未接企业检索工具） | **内部知识可追溯**：合规、客服、法务场景需证明「答案来自哪份内部文档」 |
+
+三者**互不替代**：
+
+```text
+用户问题
+    ├─ webSearchQueries      → groundingChunks[].web
+    ├─ imageSearchQueries    → groundingChunks[].image
+    └─ retrievalQueries      → groundingChunks[].retrievedContext
+```
+
+**本 demo 只配置了 `googleSearch` / `googleMaps`**，因此你在 UI 里看到 `retrievalQueries` 为「（无）」是**正常现象**，不代表 grounding 失败。要看到 `retrievalQueries`，需要在 `tools` 里额外接入 Vertex AI Search / 企业 RAG（响应里通常同时出现 `retrievedContext` 块，含 `documentName`、`pageNumber`、`text` 片段）。
+
+#### 5.6.2 `retrievalQueries` 详解：什么时候需要关心？
+
+**意义：** 与 `webSearchQueries` 对称——告诉你「去**自家知识库**里用哪些 query 检索了」，便于：
+
+1. **合规留痕**：金融、医疗、政务等需说明信息来源是否为内部核准文档  
+2. **调试 RAG**：检索词离谱 → 优先改索引、分块、同义词，而不是怪生成模型  
+3. **与 `retrievalMetadata` 联动**：例如 `googleSearchDynamicRetrievalScore` 表示 dynamic retrieval 是否认为「有必要查库」
+
+**价值边界：**
+
+- 有 `retrievalQueries` **不保证**答案正确，只保证「确实向语料库发起过检索」  
+- 没有 `retrievalQueries` **不表示**没用 grounding——公开 Search 场景本来就不会填这个字段  
+- 公开 Search + 企业 RAG **可以并存**，此时三种检索词可能同时出现在同一次响应里
+
+#### 5.6.3 `searchEntryPoint` 详解：不是模型多写的一段话
+
+**是什么：** 启用 **Google Search grounding** 且检索成功时，API 在 `groundingMetadata.searchEntryPoint` 里返回 **Search Suggestions（搜索建议条）**，核心是：
+
+```text
+searchEntryPoint.renderedContent   # 完整 HTML（常数千字符，含样式与可点击 chip）
+searchEntryPoint.sdkBlob           # 部分 SDK / 客户端场景（可选）
+```
+
+**流程位置：**
+
+```text
+Google Search grounding 成功
+    ↓
+模型文字回答 + groundingSupports 高亮
+    + groundingChunks 来源列表
+    + webSearchQueries 检索词
+    + searchEntryPoint.renderedContent  ← Google 要求展示的 UI 条（合规）
+```
+
+**产品价值：**
+
+| 价值 | 说明 |
+|------|------|
+| **合规 / 条款** | 使用 Google Search 数据时，须按服务条款**原样展示**该 HTML，不可删改 chip 文案、不可自行仿制一条「看起来像」的条 |
+| **用户自查** | 用户可点击 chip 跳转 Google SERP，自行核对事实，降低「只信模型摘要」的风险 |
+| **与检索词互补** | `webSearchQueries` 是机器可读的 query 列表；Suggestions 条是面向终端用户的官方展示形态 |
+
+**本 demo 两处展示：**
+
+| UI 位置 | 内容 |
+|---------|------|
+| 「Google Search Suggestions」盒子 | **完整** `renderedContent`，原样渲染（生产环境应保留） |
+| 扩展区「searchEntryPoint（元数据）」 | 仅 `present` / `length` / `preview`（前 200 字符），避免 JSON 快照塞入 5000+ 字 HTML |
+
+扩展区里看到 `"length": 5168` 且 preview 含 `.chip` 样式，说明 **Search grounding 已成功**，Suggestions 条正常返回——这是好事。
+
+**何时没有：** Maps 模式、纯 Image 生图、未触发 Search、`status = ungrounded` 时常见为空。
+
+**生产 checklist：**
+
+- [ ] 答案或来源附近插入 `renderedContent`，**不**改 HTML 结构与文案  
+- [ ] 不要只用扩展区的 preview 代替完整条  
+- [ ] Maps / 纯生图产品页可隐藏该区域（本模式本就不应出现）
+
+#### 5.6.4 `groundingChunks` + `groundingSupports`：来源与引用的分工
+
+| 结构 | 回答用户什么问题 | 价值 |
+|------|------------------|------|
+| **`groundingChunks`** | 「依据来自**哪里**？」 | 可点击 URL / 文档名 / 地图 POI；集成对账、跳转原文 |
+| **`groundingSupports`** | 「**哪句话**依据哪些 chunk？」 | 驱动 UI 引用高亮 `[0,1]`；片段表展示 segment ↔ 索引 |
+
+注意：
+
+- 正文里模型自己写的 Markdown 链接 **不可信**，必须以 `groundingChunks` 为准  
+- `groundingSupports` 表示「模型声称该片段有依据」，**不是**正确性打分  
+- Gemini 2.5+ 的 `confidenceScores` 通常为空，**不要**做「低于 0.8 就隐藏句子」之类逻辑（见 §5.3）
+
+#### 5.6.5 `status = ok` vs `ungrounded`：有没有真的接地？
+
+| status | 含义 | 建议产品行为 |
+|--------|------|--------------|
+| `ok` | 响应里存在 `grounding_metadata`（且本 demo 能解析） | 可展示来源与引用；仍须人工判断内容是否正确 |
+| `ungrounded` | 无 metadata 或生图模式未返回标准 metadata | UI 标黄/降级；勿标注「已联网核实」；可依赖「缺 metadata 时重试」 |
+
+**价值：** 防止「工具配置写了 `googleSearch`，但模型本轮没真搜」却当事实展示。  
+**局限：** `ok` 只说明 metadata 存在，**不保证**检索结果优质或摘要无偏。
+
+#### 5.6.6 来源 URL 是 redirect：设计如此，不是 demo 问题
+
+`groundingChunks` 里常见：
+
+```text
+https://vertexaisearch.cloud.google.com/grounding-api-redirect/...
+```
+
+而非维基、官网直链。Vertex 与 Gemini API **均如此**，且 **无 `original_uri` 字段**（详见 [§9](#9-grounding-来源-url-与-redirect)）。
+
+**价值（Google 侧）：** 统一归因、合规跳转、计费与滥用防护。  
+**你的产品价值：** 展示 redirect 仍合规可点；需要「最终 URL」时可选 `--resolve-redirects`（本仓库 `redirect_resolve.py`），但解析是**工程增强**，非 API 保证字段。
+
+#### 5.6.7 扩展字段速查：其余 metadata 何时有用
+
+| 字段 | 典型场景 | 价值 |
+|------|----------|------|
+| `retrievalMetadata` | Dynamic retrieval / 企业检索 | 判断是否「值得查库」、调阈值 |
+| `googleMapsWidgetContextToken` | Maps grounding + 地图小组件 | 嵌入 Google Maps UI 组件 |
+| `sourceFlaggingUris` | 来源举报 / 标记 | 合规与用户反馈入口 |
+| `_fieldPresence`（demo 扩展） | 调试集成 | 一眼看出本次响应哪些官方字段有值 |
+
+#### 5.6.8 一张图串起来（网页 Search 成功时）
+
+```text
+                    ┌─────────────────────────────────────┐
+                    │         groundingMetadata            │
+                    ├─────────────────────────────────────┤
+ webSearchQueries ──┤ 透明：实际搜了哪些词                    │
+ imageSearchQueries ┤ （生图/混合时）视觉检索词               │
+ retrievalQueries ──┤ （企业 RAG 时）内部检索词；demo 常为空   │
+                    ├─────────────────────────────────────┤
+ groundingChunks ───┤ 价值：可核对出处（web/image/maps/RAG）  │
+ groundingSupports ─┤ 价值：句子级引用高亮                    │
+ searchEntryPoint ──┤ 价值：合规 Suggestions + 用户跳转 SERP  │
+ retrievalMetadata ─┤ 价值：检索策略调试（如有）              │
+                    └─────────────────────────────────────┘
+                              +
+                    candidates[].content.parts（模型回答正文）
+```
 
 ---
 
@@ -285,7 +465,7 @@ types.Tool(
 | latLng + 提示注入 | `_build_config` + `_with_location_hint` | 地理盒子 / 定位按钮 |
 | 排除域名 | `GoogleSearch(exclude_domains=...)` | 「排除域名」（Search / 混合） |
 | 缺 metadata 重试 | `grounded_ask` 第二次强化提示 | 「缺 metadata 时重试」 |
-| 引用高亮 / 来源 / 片段 | `parse_grounding` + `annotate_answer_html` | 结果区各块 |
+| 引用高亮 / 来源 / 片段 | `parse_grounding` + `annotate_answer_html` | 结果区各块 + **groundingMetadata 扩展字段** |
 | Search Suggestions | `search_suggestions_html` | Suggestions 盒子 |
 | 二次核对 | `verify_claims` | 勾选 + 核对结果 |
 | 运行记录 | `web_app._RUN_HISTORY` | 「运行记录」面板 |
@@ -485,6 +665,7 @@ https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ...
 | [§3](#3-最小调用示例) | 代码示例 |
 | [§4](#4-ui-上的降幻觉手段必须看清能做什么不能做什么) | UI 降幻觉对照 |
 | [§5](#5-读响应时看什么) | 响应字段 |
+| [§5.6](#56-常见疑点各字段的意义与产品价值) | 检索词 / Suggestions / 来源 / redirect 疑点详解 |
 | [§6](#6-和本仓库代码--ui-对应) | 代码 / UI 映射 |
 | [§8](#8-sse-流式多模态-gcs-count-tokens) | 流式、GCS、Token |
 | [§9](#9-grounding-来源-url-与-redirect) | redirect URL 说明 |

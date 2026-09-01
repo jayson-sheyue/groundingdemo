@@ -4,7 +4,7 @@ Vertex AI + [`google-genai`](https://googleapis.github.io/python-genai/) 演示�
 
 - **不含**旧版 `confidenceScores` 阈值（Gemini 2.5+ 官方为空，应忽略）
 - **教程**：[learning_guide.md](./learning_guide.md)（概念、UI 对照、官方文档索引）
-- **能力详解**：[§8 流式 / 多模态 / Token](./learning_guide.md#8-sse-流式多模态-gcs-count-tokens) · [§9 来源 URL 与 redirect](./learning_guide.md#9-grounding-来源-url-与-redirect)
+- **能力详解**：[§5 groundingMetadata 字段](./learning_guide.md#5-读响应时看什么) · [§5.6 常见疑点与价值](./learning_guide.md#56-常见疑点各字段的意义与产品价值) · [§8 流式 / 多模态 / Token](./learning_guide.md#8-sse-流式多模态-gcs-count-tokens) · [§9 来源 URL 与 redirect](./learning_guide.md#9-grounding-来源-url-与-redirect)
 
 ---
 
@@ -22,6 +22,9 @@ Vertex AI + [`google-genai`](https://googleapis.github.io/python-genai/) 演示�
 | GCS 多模态 | `--gcs path` | 添加附件 → `POST /upload` |
 | count-tokens | `--count-tokens` | 统计输入 Token → `POST /count-tokens` |
 | 解析 redirect 最终 URL | `--resolve-redirects` | 勾选「解析 grounding redirect」 |
+| groundingMetadata 全字段 | `parse_grounding_metadata()` | 结果区「扩展字段」表 + JSON 快照 |
+
+**响应字段**：`webSearchQueries` / `imageSearchQueries` / `retrievalQueries`、`groundingChunks`（web / image / maps / retrievedContext）、`groundingSupports`、`searchEntryPoint`、`retrievalMetadata` 等 — 字段表见 [learning_guide §5](./learning_guide.md#5-读响应时看什么)，**意义与常见疑点**见 [§5.6](./learning_guide.md#56-常见疑点各字段的意义与产品价值)。
 
 ---
 
@@ -151,4 +154,4 @@ Google Search / Image Search grounding 的 `uri` / `source_uri` / `image_uri` **
 
 与 Web UI **一一对应**的说明见 **[learning_guide §4](./learning_guide.md#4-ui-上的降幻觉手段必须看清能做什么不能做什么)**。
 
-摘要：选对模式与模型 → latLng + 提示注入 → Search 排除域名 → 校验 `grounding_metadata` 并重试 → 展示来源与引用 → Search Suggestions 原样展示 → 可选二次核对（**非零幻觉保证**）。
+摘要：选对模式与模型 → latLng + 提示注入 → Search 排除域名 → 校验 `grounding_metadata` 并重试 → 展示来源与引用 → **Search Suggestions 原样展示（`searchEntryPoint`）** → 理解 `retrievalQueries` 仅在企业 RAG 场景出现 → 可选二次核对（**非零幻觉保证**）。疑点详解：[§5.6](./learning_guide.md#56-常见疑点各字段的意义与产品价值)。

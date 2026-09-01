@@ -245,6 +245,7 @@
       font-family: Fraunces, Georgia, serif; font-size: 1.05rem; margin: 1rem 0 .5rem;
     }
     .stream-grounding h3:first-child { margin-top: 0; }
+    .muted-preview { color: var(--muted); font-size: .88rem; }
     .stream-meta {
       margin-top: .75rem; font-size: .88rem; color: var(--muted);
       font-family: "IBM Plex Mono", monospace; white-space: pre-wrap;
@@ -495,8 +496,12 @@
           <ul class="clean" id="stream-queries"></ul>
           <h3>检索词（image）</h3>
           <ul class="clean" id="stream-image-queries"></ul>
+          <h3>检索词（retrieval）</h3>
+          <ul class="clean" id="stream-retrieval-queries"></ul>
           <h3>来源</h3>
           <ul class="clean sources" id="stream-sources"></ul>
+          <h3>groundingMetadata 字段</h3>
+          <pre class="verify" id="stream-field-presence" style="font-size:.8rem"></pre>
         </div>
         <div class="stream-meta" id="stream-meta"></div>
       </div>
@@ -551,6 +556,28 @@
             <br /><span class="mono resolve-err">{{ label }} 解析失败: {{ resolved.error or 'unknown' }}</span>
           {% endif %}
         {% endif %}
+      {% endmacro %}
+
+      {% macro source_item(s) %}
+        <li>
+          <strong>[{{ s.index }}]</strong> <span class="mono">({{ s.kind }})</span>
+          {{ s.title or '(no title)' }}
+          {% if s.kind == 'image' %}
+            {{ grounding_url('source_uri', s.source_uri, (s.resolved or {}).get('source_uri')) }}
+            {{ grounding_url('image_uri', s.image_uri, (s.resolved or {}).get('image_uri')) }}
+          {% elif s.kind == 'retrievedContext' %}
+            {% if s.document_name %}<br /><span class="mono">document: {{ s.document_name }}</span>{% endif %}
+            {% if s.page_number is not none %}<br /><span class="mono">page: {{ s.page_number }}</span>{% endif %}
+            {{ grounding_url('uri', s.uri, (s.resolved or {}).get('uri')) }}
+            {% if s.text %}<br /><span class="muted-preview">{{ s.text[:300] }}{% if s.text|length > 300 %}…{% endif %}</span>{% endif %}
+          {% elif s.kind == 'maps' %}
+            {% if s.place_id %}<br /><span class="mono">placeId: {{ s.place_id }}</span>{% endif %}
+            {{ grounding_url('uri', s.uri, (s.resolved or {}).get('uri')) }}
+          {% else %}
+            {{ grounding_url('uri', s.uri, (s.resolved or {}).get('uri')) }}
+            {% if s.domain %}<br /><span class="mono">domain: {{ s.domain }}</span>{% endif %}
+          {% endif %}
+        </li>
       {% endmacro %}
 
       <section class="panel" id="result-section">
@@ -638,11 +665,7 @@
         {% if view.image_reference_sources %}
           <ul class="clean sources">
             {% for s in view.image_reference_sources %}
-              <li>
-                <strong>[{{ s.index }}]</strong> {{ s.title or '(no title)' }}
-                {{ grounding_url('source_uri', s.source_uri, (s.resolved or {}).get('source_uri')) }}
-                {{ grounding_url('image_uri', s.image_uri, (s.resolved or {}).get('image_uri')) }}
-              </li>
+              {{ source_item(s) }}
             {% endfor %}
           </ul>
         {% else %}
@@ -691,35 +714,36 @@
           <p style="color:var(--muted)">（无 / 纯网页 Search 模式可能为空）</p>
         {% endif %}
 
+        <h2>检索词（retrievalQueries）</h2>
+        {% if view.retrieval_queries %}
+          <ul class="clean">{% for q in view.retrieval_queries %}<li class="mono">{{ q }}</li>{% endfor %}</ul>
+        {% else %}
+          <p style="color:var(--muted)">（无）— 企业 RAG / Vertex AI Search 等场景可能出现。</p>
+        {% endif %}
+
         <h2>来源（groundingChunks）</h2>
         {% if view.sources %}
           <ul class="clean sources">
             {% for s in view.sources %}
-              <li>
-                <strong>[{{ s.index }}]</strong> <span class="mono">({{ s.kind }})</span>
-                {{ s.title or '(no title)' }}
-                {% if s.kind == 'image' %}
-                  {{ grounding_url('source_uri', s.source_uri, (s.resolved or {}).get('source_uri')) }}
-                  {{ grounding_url('image_uri', s.image_uri, (s.resolved or {}).get('image_uri')) }}
-                {% else %}
-                  {{ grounding_url('uri', s.uri, (s.resolved or {}).get('uri')) }}
-                {% endif %}
-              </li>
+              {{ source_item(s) }}
             {% endfor %}
           </ul>
         {% else %}
           <p style="color:var(--muted)">（无）</p>
         {% endif %}
 
+        {% endif %}
+
         <h2>引用片段（groundingSupports）</h2>
-        <p class="hint">2.5+ 通常无 confidenceScores；这里只展示「哪段话 ↔ 哪些来源」。</p>
+        <p class="hint">展示 segment ↔ chunk 索引；若 API 返回 <code>confidenceScores</code>（多为 2.5 以前）会一并显示。</p>
         {% if view.supports %}
           <table class="support-table">
-            <thead><tr><th>来源索引</th><th>片段</th></tr></thead>
+            <thead><tr><th>来源索引</th><th>confidenceScores</th><th>片段</th></tr></thead>
             <tbody>
               {% for s in view.supports %}
                 <tr>
                   <td class="mono">{{ s.chunk_indices }}</td>
+                  <td class="mono">{% if s.confidence_scores %}{{ s.confidence_scores }}{% else %}—{% endif %}</td>
                   <td>{{ s.text }}</td>
                 </tr>
               {% endfor %}
@@ -727,6 +751,54 @@
           </table>
         {% else %}
           <p style="color:var(--muted)">（无）</p>
+        {% endif %}
+
+        {% if view.grounding_metadata_raw %}
+        <h2>groundingMetadata 扩展字段</h2>
+        <p class="hint">官方 <code>groundingMetadata</code> 除检索词与 chunks 外的字段；见 <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingMetadata" target="_blank" rel="noopener">REST 文档</a>。</p>
+
+        <table class="compare-table">
+          <thead><tr><th>官方字段</th><th>本次是否有值</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">webSearchQueries</td><td>{{ '✓' if view.grounding_field_presence.get('webSearchQueries') else '—' }}</td><td>网页 Search 检索词</td></tr>
+            <tr><td class="mono">imageSearchQueries</td><td>{{ '✓' if view.grounding_field_presence.get('imageSearchQueries') else '—' }}</td><td>Image Search 检索词</td></tr>
+            <tr><td class="mono">retrievalQueries</td><td>{{ '✓' if view.grounding_field_presence.get('retrievalQueries') else '—' }}</td><td>企业 RAG / Agent Search 检索词</td></tr>
+            <tr><td class="mono">groundingChunks</td><td>{{ '✓' if view.grounding_field_presence.get('groundingChunks') else '—' }}</td><td>来源块（web / image / maps / retrievedContext）</td></tr>
+            <tr><td class="mono">groundingSupports</td><td>{{ '✓' if view.grounding_field_presence.get('groundingSupports') else '—' }}</td><td>回答片段 ↔ 来源索引</td></tr>
+            <tr><td class="mono">searchEntryPoint</td><td>{{ '✓' if view.grounding_field_presence.get('searchEntryPoint') else '—' }}</td><td>Search Suggestions（合规展示）</td></tr>
+            <tr><td class="mono">retrievalMetadata</td><td>{{ '✓' if view.grounding_field_presence.get('retrievalMetadata') else '—' }}</td><td>如 dynamic retrieval 分数</td></tr>
+            <tr><td class="mono">googleMapsWidgetContextToken</td><td>{{ '✓' if view.grounding_field_presence.get('googleMapsWidgetContextToken') else '—' }}</td><td>Maps 小组件上下文</td></tr>
+            <tr><td class="mono">sourceFlaggingUris</td><td>{{ '✓' if view.grounding_field_presence.get('sourceFlaggingUris') else '—' }}</td><td>来源标记 / 举报 URI</td></tr>
+          </tbody>
+        </table>
+
+        {% if view.retrieval_queries %}
+        <h3>retrievalQueries</h3>
+        <ul class="clean">{% for q in view.retrieval_queries %}<li class="mono">{{ q }}</li>{% endfor %}</ul>
+        {% endif %}
+
+        {% if view.retrieval_metadata %}
+        <h3>retrievalMetadata</h3>
+        <pre class="verify">{{ view.retrieval_metadata | tojson(indent=2) }}</pre>
+        {% endif %}
+
+        {% if view.google_maps_widget_context_token %}
+        <h3>googleMapsWidgetContextToken</h3>
+        <p class="mono" style="word-break:break-all">{{ view.google_maps_widget_context_token }}</p>
+        {% endif %}
+
+        {% if view.source_flagging_uris %}
+        <h3>sourceFlaggingUris</h3>
+        <pre class="verify">{{ view.source_flagging_uris | tojson(indent=2) }}</pre>
+        {% endif %}
+
+        {% if view.search_entry_point %}
+        <h3>searchEntryPoint（元数据，不含完整 HTML）</h3>
+        <pre class="verify">{{ view.search_entry_point | tojson(indent=2) }}</pre>
+        {% endif %}
+
+        <h3>groundingMetadata 结构化快照</h3>
+        <pre class="verify">{{ view.grounding_metadata_raw | tojson(indent=2) }}</pre>
         {% endif %}
 
         {% if view.usage %}
@@ -748,7 +820,6 @@
         {% if view.verify_text %}
           <h2>二次核对</h2>
           <div class="verify">{{ view.verify_text }}</div>
-        {% endif %}
         {% endif %}
       </section>
     {% endif %}
@@ -797,7 +868,9 @@
       const streamGrounding = document.getElementById("stream-grounding");
       const streamQueries = document.getElementById("stream-queries");
       const streamImageQueries = document.getElementById("stream-image-queries");
+      const streamRetrievalQueries = document.getElementById("stream-retrieval-queries");
       const streamSources = document.getElementById("stream-sources");
+      const streamFieldPresence = document.getElementById("stream-field-presence");
       const streamHint = document.getElementById("stream-hint");
       const resultSection = document.getElementById("result-section");
       const tokenEstimate = document.getElementById("token-estimate");
@@ -1055,45 +1128,42 @@
       function renderStreamGrounding(grounding) {
         streamQueries.innerHTML = "";
         streamImageQueries.innerHTML = "";
+        streamRetrievalQueries.innerHTML = "";
         streamSources.innerHTML = "";
+        if (streamFieldPresence) streamFieldPresence.textContent = "";
         if (!grounding) {
           streamGrounding.hidden = true;
           return;
         }
         const queries = grounding.web_search_queries || [];
         const imageQueries = grounding.image_search_queries || [];
+        const retrievalQueries = grounding.retrieval_queries || [];
         const sources = grounding.sources || [];
-        if (!queries.length && !imageQueries.length && !sources.length) {
+        const presence = grounding.field_presence || grounding._fieldPresence || {};
+        const hasPresence = Object.keys(presence).length > 0;
+        if (!queries.length && !imageQueries.length && !retrievalQueries.length && !sources.length && !hasPresence) {
           streamGrounding.hidden = true;
           return;
         }
         streamGrounding.hidden = false;
-        if (queries.length) {
-          queries.forEach(function (q) {
+        function fillQueryList(el, items) {
+          if (items.length) {
+            items.forEach(function (q) {
+              const li = document.createElement("li");
+              li.className = "mono";
+              li.textContent = q;
+              el.appendChild(li);
+            });
+          } else {
             const li = document.createElement("li");
-            li.className = "mono";
-            li.textContent = q;
-            streamQueries.appendChild(li);
-          });
-        } else {
-          const li = document.createElement("li");
-          li.style.color = "var(--muted)";
-          li.textContent = "（无）";
-          streamQueries.appendChild(li);
+            li.style.color = "var(--muted)";
+            li.textContent = "（无）";
+            el.appendChild(li);
+          }
         }
-        if (imageQueries.length) {
-          imageQueries.forEach(function (q) {
-            const li = document.createElement("li");
-            li.className = "mono";
-            li.textContent = q;
-            streamImageQueries.appendChild(li);
-          });
-        } else {
-          const li = document.createElement("li");
-          li.style.color = "var(--muted)";
-          li.textContent = "（无）";
-          streamImageQueries.appendChild(li);
-        }
+        fillQueryList(streamQueries, queries);
+        fillQueryList(streamImageQueries, imageQueries);
+        fillQueryList(streamRetrievalQueries, retrievalQueries);
         if (sources.length) {
           sources.forEach(function (s) {
             const li = document.createElement("li");
@@ -1103,8 +1173,20 @@
             if (s.kind === "image") {
               html = appendResolvedUrlHtml(html, "source_uri", s.source_uri, resolved.source_uri);
               html = appendResolvedUrlHtml(html, "image_uri", s.image_uri, resolved.image_uri);
+            } else if (s.kind === "retrievedContext") {
+              if (s.document_name) html += "<br /><span class=\"mono\">document: " + escapeHtml(s.document_name) + "</span>";
+              if (s.page_number != null) html += "<br /><span class=\"mono\">page: " + escapeHtml(String(s.page_number)) + "</span>";
+              html = appendResolvedUrlHtml(html, "uri", s.uri, resolved.uri);
+              if (s.text) {
+                const preview = s.text.length > 300 ? s.text.slice(0, 300) + "…" : s.text;
+                html += "<br /><span class=\"muted-preview\">" + escapeHtml(preview) + "</span>";
+              }
+            } else if (s.kind === "maps") {
+              if (s.place_id) html += "<br /><span class=\"mono\">placeId: " + escapeHtml(s.place_id) + "</span>";
+              html = appendResolvedUrlHtml(html, "uri", s.uri, resolved.uri);
             } else {
               html = appendResolvedUrlHtml(html, "uri", s.uri, resolved.uri);
+              if (s.domain) html += "<br /><span class=\"mono\">domain: " + escapeHtml(s.domain) + "</span>";
             }
             li.innerHTML = html;
             streamSources.appendChild(li);
@@ -1114,6 +1196,9 @@
           li.style.color = "var(--muted)";
           li.textContent = "（无）";
           streamSources.appendChild(li);
+        }
+        if (streamFieldPresence && hasPresence) {
+          streamFieldPresence.textContent = JSON.stringify(presence, null, 2);
         }
       }
 

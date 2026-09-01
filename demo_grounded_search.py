@@ -186,6 +186,47 @@ class GroundedSpan:
     start_index: Optional[int]
     end_index: Optional[int]
     chunk_indices: list[int] = field(default_factory=list)
+    confidence_scores: list[float] = field(default_factory=list)
+
+
+@dataclass
+class ParsedGroundingMetadata:
+    web_search_queries: list[str] = field(default_factory=list)
+    image_search_queries: list[str] = field(default_factory=list)
+    retrieval_queries: list[str] = field(default_factory=list)
+    sources: list[dict[str, Any]] = field(default_factory=list)
+    supports: list[GroundedSpan] = field(default_factory=list)
+    search_suggestions_html: Optional[str] = None
+    search_entry_point: Optional[dict[str, Any]] = None
+    retrieval_metadata: Optional[dict[str, Any]] = None
+    google_maps_widget_context_token: Optional[str] = None
+    source_flagging_uris: list[dict[str, Any]] = field(default_factory=list)
+    field_presence: dict[str, bool] = field(default_factory=dict)
+
+    def to_raw_dict(self) -> dict[str, Any]:
+        """Structured groundingMetadata for UI / logs (no rendered HTML blob)."""
+        supports = [
+            {
+                "text": s.text,
+                "start_index": s.start_index,
+                "end_index": s.end_index,
+                "chunk_indices": s.chunk_indices,
+                "confidence_scores": s.confidence_scores or None,
+            }
+            for s in self.supports
+        ]
+        return {
+            "webSearchQueries": self.web_search_queries,
+            "imageSearchQueries": self.image_search_queries,
+            "retrievalQueries": self.retrieval_queries,
+            "groundingChunks": self.sources,
+            "groundingSupports": supports,
+            "searchEntryPoint": self.search_entry_point,
+            "retrievalMetadata": self.retrieval_metadata,
+            "googleMapsWidgetContextToken": self.google_maps_widget_context_token,
+            "sourceFlaggingUris": self.source_flagging_uris,
+            "_fieldPresence": self.field_presence,
+        }
 
 
 @dataclass
@@ -201,6 +242,13 @@ class GroundedResult:
     search_suggestions_html: Optional[str] = None
     generated_images: list[dict[str, Any]] = field(default_factory=list)
     demo_kind: str = "text_qa"  # text_qa | image_gen
+    retrieval_queries: list[str] = field(default_factory=list)
+    retrieval_metadata: Optional[dict[str, Any]] = None
+    google_maps_widget_context_token: Optional[str] = None
+    source_flagging_uris: list[dict[str, Any]] = field(default_factory=list)
+    search_entry_point: Optional[dict[str, Any]] = None
+    grounding_field_presence: dict[str, bool] = field(default_factory=dict)
+    grounding_metadata_raw: Optional[dict[str, Any]] = None
     warning: Optional[str] = None
     raw_usage: Optional[dict[str, Any]] = None
 
@@ -445,7 +493,7 @@ def _chunk_to_dict(chunk: Any, index: int) -> Optional[dict[str, Any]]:
             "kind": "maps",
             "uri": getattr(maps, "uri", None),
             "title": getattr(maps, "title", None),
-            "place_id": getattr(maps, "place_id", None),
+            "place_id": getattr(maps, "place_id", None) or getattr(maps, "placeId", None),
             "domain": None,
         }
     image = getattr(chunk, "image", None)
@@ -461,14 +509,64 @@ def _chunk_to_dict(chunk: Any, index: int) -> Optional[dict[str, Any]]:
             "title": getattr(image, "title", None),
             "domain": getattr(image, "domain", None),
         }
+    retrieved = getattr(chunk, "retrieved_context", None)
+    if retrieved is not None:
+        return {
+            "index": index,
+            "kind": "retrievedContext",
+            "uri": getattr(retrieved, "uri", None),
+            "title": getattr(retrieved, "title", None),
+            "text": getattr(retrieved, "text", None),
+            "document_name": getattr(retrieved, "document_name", None),
+            "page_number": getattr(retrieved, "page_number", None),
+        }
     return None
 
 
-def _parse_grounding_metadata(
-    gm: Any,
-) -> tuple[list[str], list[str], list[dict[str, Any]], list[GroundedSpan], Optional[str]]:
-    queries = list(getattr(gm, "web_search_queries", None) or [])
-    image_queries = list(getattr(gm, "image_search_queries", None) or [])
+def _retrieval_metadata_to_dict(rm: Any) -> Optional[dict[str, Any]]:
+    if rm is None:
+        return None
+    score = getattr(rm, "google_search_dynamic_retrieval_score", None)
+    if score is None:
+        return None
+    return {"googleSearchDynamicRetrievalScore": score}
+
+
+def _search_entry_point_to_dict(entry: Any) -> Optional[dict[str, Any]]:
+    if entry is None:
+        return None
+    rendered = getattr(entry, "rendered_content", None)
+    sdk_blob = getattr(entry, "sdk_blob", None)
+    if not rendered and not sdk_blob:
+        return None
+    data: dict[str, Any] = {}
+    if rendered:
+        data["renderedContent"] = {
+            "present": True,
+            "length": len(rendered),
+            "preview": rendered[:200],
+        }
+    if sdk_blob:
+        data["sdkBlob"] = {
+            "present": True,
+            "length": len(str(sdk_blob)),
+        }
+    return data or None
+
+
+def _source_flagging_to_dict(item: Any) -> dict[str, Any]:
+    return {
+        "sourceId": getattr(item, "source_id", None),
+        "flagContentUri": getattr(item, "flag_content_uri", None),
+    }
+
+
+def parse_grounding_metadata(gm: Any) -> ParsedGroundingMetadata:
+    """Parse official groundingMetadata fields from API response."""
+    web_q = list(getattr(gm, "web_search_queries", None) or [])
+    image_q = list(getattr(gm, "image_search_queries", None) or [])
+    retrieval_q = list(getattr(gm, "retrieval_queries", None) or [])
+
     sources: list[dict[str, Any]] = []
     for i, chunk in enumerate(getattr(gm, "grounding_chunks", None) or []):
         item = _chunk_to_dict(chunk, i)
@@ -478,18 +576,67 @@ def _parse_grounding_metadata(
     supports: list[GroundedSpan] = []
     for s in getattr(gm, "grounding_supports", None) or []:
         segment = getattr(s, "segment", None)
+        scores = list(getattr(s, "confidence_scores", None) or [])
         supports.append(
             GroundedSpan(
                 text=getattr(segment, "text", None) or "",
                 start_index=getattr(segment, "start_index", None),
                 end_index=getattr(segment, "end_index", None),
                 chunk_indices=list(getattr(s, "grounding_chunk_indices", None) or []),
+                confidence_scores=scores,
             )
         )
 
     entry = getattr(gm, "search_entry_point", None)
     suggestions = getattr(entry, "rendered_content", None) if entry else None
-    return queries, image_queries, sources, supports, suggestions
+    entry_dict = _search_entry_point_to_dict(entry)
+    retrieval_meta = _retrieval_metadata_to_dict(getattr(gm, "retrieval_metadata", None))
+    maps_token = getattr(gm, "google_maps_widget_context_token", None)
+    flagging = [
+        _source_flagging_to_dict(x)
+        for x in (getattr(gm, "source_flagging_uris", None) or [])
+    ]
+
+    presence = {
+        "webSearchQueries": bool(web_q),
+        "imageSearchQueries": bool(image_q),
+        "retrievalQueries": bool(retrieval_q),
+        "groundingChunks": bool(sources),
+        "groundingSupports": bool(supports),
+        "searchEntryPoint": bool(entry_dict or suggestions),
+        "retrievalMetadata": bool(retrieval_meta),
+        "googleMapsWidgetContextToken": bool(maps_token),
+        "sourceFlaggingUris": bool(flagging),
+    }
+
+    return ParsedGroundingMetadata(
+        web_search_queries=web_q,
+        image_search_queries=image_q,
+        retrieval_queries=retrieval_q,
+        sources=sources,
+        supports=supports,
+        search_suggestions_html=suggestions,
+        search_entry_point=entry_dict,
+        retrieval_metadata=retrieval_meta,
+        google_maps_widget_context_token=maps_token,
+        source_flagging_uris=flagging,
+        field_presence=presence,
+    )
+
+
+def _apply_parsed_grounding(result: GroundedResult, parsed: ParsedGroundingMetadata) -> None:
+    result.web_search_queries = parsed.web_search_queries
+    result.image_search_queries = parsed.image_search_queries
+    result.retrieval_queries = parsed.retrieval_queries
+    result.sources = parsed.sources
+    result.supports = parsed.supports
+    result.search_suggestions_html = parsed.search_suggestions_html
+    result.search_entry_point = parsed.search_entry_point
+    result.retrieval_metadata = parsed.retrieval_metadata
+    result.google_maps_widget_context_token = parsed.google_maps_widget_context_token
+    result.source_flagging_uris = parsed.source_flagging_uris
+    result.grounding_field_presence = parsed.field_presence
+    result.grounding_metadata_raw = parsed.to_raw_dict()
 
 
 def parse_grounding(
@@ -522,22 +669,19 @@ def parse_grounding(
     gm = getattr(candidate, "grounding_metadata", None)
 
     if gm is not None:
-        queries, image_queries, sources, supports, suggestions = _parse_grounding_metadata(gm)
-        return GroundedResult(
+        parsed = parse_grounding_metadata(gm)
+        result = GroundedResult(
             status="ok",
             mode=mode,
             demo_kind="image_gen" if is_image_generation_mode(mode) else "text_qa",
             text=text,
             model=model,
-            web_search_queries=queries,
-            image_search_queries=image_queries,
-            sources=sources,
-            supports=supports,
-            search_suggestions_html=suggestions,
             generated_images=generated_images,
             warning=None,
             raw_usage=usage,
         )
+        _apply_parsed_grounding(result, parsed)
+        return result
 
     if is_image_generation_mode(mode) and generated_images:
         return GroundedResult(
@@ -584,33 +728,25 @@ def usage_metadata_to_dict(usage: Any) -> dict[str, Any]:
 
 
 def grounding_metadata_to_dict(gm: Any) -> dict[str, Any]:
-    sources: list[dict[str, Any]] = []
-    for i, chunk in enumerate(getattr(gm, "grounding_chunks", None) or []):
-        item = _chunk_to_dict(chunk, i)
-        if item:
-            sources.append(item)
-
-    supports: list[dict[str, Any]] = []
-    for s in getattr(gm, "grounding_supports", None) or []:
-        segment = getattr(s, "segment", None)
-        supports.append(
-            {
-                "text": getattr(segment, "text", None) or "",
-                "start_index": getattr(segment, "start_index", None),
-                "end_index": getattr(segment, "end_index", None),
-                "chunk_indices": list(getattr(s, "grounding_chunk_indices", None) or []),
-            }
-        )
-
-    entry = getattr(gm, "search_entry_point", None)
-    suggestions = getattr(entry, "rendered_content", None) if entry else None
-    return {
-        "web_search_queries": list(getattr(gm, "web_search_queries", None) or []),
-        "image_search_queries": list(getattr(gm, "image_search_queries", None) or []),
-        "sources": sources,
-        "supports": supports,
-        "search_suggestions_html": suggestions,
-    }
+    parsed = parse_grounding_metadata(gm)
+    data = parsed.to_raw_dict()
+    if parsed.search_suggestions_html:
+        data["search_suggestions_html"] = {
+            "present": True,
+            "length": len(parsed.search_suggestions_html),
+        }
+    # SSE / stream consumers expect these keys
+    data["web_search_queries"] = parsed.web_search_queries
+    data["image_search_queries"] = parsed.image_search_queries
+    data["retrieval_queries"] = parsed.retrieval_queries
+    data["sources"] = parsed.sources
+    data["supports"] = data["groundingSupports"]
+    data["search_entry_point"] = parsed.search_entry_point
+    data["retrieval_metadata"] = parsed.retrieval_metadata
+    data["google_maps_widget_context_token"] = parsed.google_maps_widget_context_token
+    data["source_flagging_uris"] = parsed.source_flagging_uris
+    data["field_presence"] = parsed.field_presence
+    return data
 
 
 def format_sse(event: str, data: dict[str, Any]) -> str:
