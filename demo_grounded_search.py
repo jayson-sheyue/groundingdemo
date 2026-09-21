@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Modern Grounding demo (Vertex AI + google-genai).
+"""Gemini Enterprise Agent Platform grounding demo (Vertex AI).
 
 Targets Gemini 2.5+ behavior:
 - Google Search grounding (public web)
 - Google Image Search grounding (preview; searchTypes.imageSearch)
 - optional hybrid web + image search
-- optional Google Maps grounding (places / local data)
+- Google Maps grounding (places / local data)
+- URL Context grounding (specific public pages / PDFs)
+- Agent Search grounding (your Vertex AI Search data store)
 - optional latLng context (NOT the same as Maps grounding)
 - SSE streaming (grounding chunks + usage_metadata)
 - Vertex GCS multimodal input (PDF / image via gs://)
@@ -38,7 +40,11 @@ from redirect_resolve import enrich_sources, env_resolve_redirects_default
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
 
-GroundingMode = Literal["search", "image_search", "search_hybrid", "maps"]
+GroundingMode = Literal[
+    "search", "image_search", "maps", "url_context", "agent_search",
+    "rag_engine", "external_search", "elasticsearch", "parallel_web",
+    "enterprise_web",
+]
 
 DEFAULT_IMAGE_GEN_MODEL = "gemini-3.1-flash-image"
 DEFAULT_IMAGE_GEN_QUESTION = (
@@ -113,8 +119,10 @@ def default_question_for_mode(mode: GroundingMode) -> str:
         return "这附近有什么口碑好的咖啡馆？"
     if is_image_generation_mode(mode):
         return DEFAULT_IMAGE_GEN_QUESTION
-    if mode == "search_hybrid":
-        return "2026 年世界杯主办城市有哪些？请同时给出相关体育场示意图的来源。"
+    if mode == "url_context":
+        return "请总结并比较这个页面的重点：https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context"
+    if mode == "agent_search":
+        return "请仅根据已选 Agent Search 数据源回答：核心结论是什么？"
     return "美国下一次可见的日全食是什么时候？"
 
 
@@ -258,6 +266,7 @@ def _env(name: str, default: str = "") -> str:
 
 
 def build_client() -> genai.Client:
+    """Create a Gemini Enterprise Agent Platform client using Vertex credentials."""
     project = _env("GOOGLE_CLOUD_PROJECT") or _env("GCP_PROJECT_ID")
     location = _env("GOOGLE_CLOUD_LOCATION") or _env("GCP_LOCATION") or "global"
     if not project:
@@ -265,13 +274,14 @@ def build_client() -> genai.Client:
             "Missing GOOGLE_CLOUD_PROJECT. Copy .env.example to .env and set your GCP project."
         )
     os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    os.environ.setdefault("GOOGLE_GENAI_USE_ENTERPRISE", "true")
     os.environ["GOOGLE_CLOUD_PROJECT"] = project
     os.environ["GOOGLE_CLOUD_LOCATION"] = location
     return genai.Client(
         vertexai=True,
         project=project,
         location=location,
-        http_options=types.HttpOptions(api_version="v1"),
+        http_options=types.HttpOptions(api_version="v1beta1"),
     )
 
 
@@ -414,16 +424,6 @@ def _google_search_tool(
                 image_search=types.ImageSearch(),
             ),
         )
-    if mode == "search_hybrid":
-        domains = exclude_domains if exclude_domains is not None else _parse_exclude_domains()
-        return types.GoogleSearch(
-            search_types=types.SearchTypes(
-                web_search=types.WebSearch(),
-                image_search=types.ImageSearch(),
-            ),
-            exclude_domains=domains or None,
-            blocking_confidence=_parse_blocking_confidence(),
-        )
     domains = exclude_domains if exclude_domains is not None else _parse_exclude_domains()
     return types.GoogleSearch(
         exclude_domains=domains or None,
@@ -436,13 +436,21 @@ def _build_config(
     mode: GroundingMode,
     lat_lng: Optional[types.LatLng] = None,
     exclude_domains: Optional[list[str]] = None,
+    agent_search_datastore: Optional[str] = None,
+    rag_corpus: Optional[str] = None,
+    external_endpoint: Optional[str] = None,
+    external_api_key: Optional[str] = None,
+    elastic_index: Optional[str] = None,
+    elastic_template: Optional[str] = None,
+    partner_api_key: Optional[str] = None,
+    partner_provider: Optional[str] = None,
 ) -> types.GenerateContentConfig:
     """Build generateContent config for modern Search or Maps grounding.
 
     lat_lng is optional context for either tool. It is NOT the same as enabling
     Google Maps grounding — Maps grounding requires tools=[googleMaps].
 
-    exclude_domains: Vertex-only for googleSearch (not Gemini Developer API).
+    exclude_domains: Enterprise Agent Platform / Vertex-only googleSearch option.
     """
     effective = lat_lng if lat_lng is not None else _parse_lat_lng()
     tool_config = None
@@ -452,8 +460,59 @@ def _build_config(
         )
 
     if mode == "maps":
+        # The installed Enterprise SDK exposes GoogleMaps but not the newer
+        # Places/Routing subtype classes. Use the compatible Places default.
         tools = [types.Tool(google_maps=types.GoogleMaps())]
         system = SYSTEM_MAPS
+    elif mode == "url_context":
+        tools = [types.Tool(url_context=types.UrlContext())]
+        system = SYSTEM_SEARCH
+    elif mode == "agent_search":
+        if not agent_search_datastore:
+            raise RuntimeError("Agent Search 模式需要完整的 Vertex AI Search data store 资源名。")
+        tools = [types.Tool(retrieval=types.Retrieval(
+            vertex_ai_search=types.VertexAISearch(datastore=agent_search_datastore)
+        ))]
+        system = """你是企业知识库问答助手。只依据本次 Agent Search/Vertex AI Search
+检索到的内容作答；找不到依据时明确说明，禁止用训练知识补全。"""
+    elif mode == "rag_engine":
+        if not rag_corpus:
+            raise RuntimeError("RAG Engine 模式需要完整的 RAG corpus 资源名。")
+        tools = [types.Tool(retrieval=types.Retrieval(vertex_rag_store=types.VertexRagStore(
+            rag_resources=[types.VertexRagStoreRagResource(rag_corpus=rag_corpus)]
+        )))]
+        system = "只依据本次 RAG Engine 取回的企业语料回答；没有依据时明确说明。"
+    elif mode in ("external_search", "elasticsearch"):
+        if not external_endpoint or not external_api_key:
+            raise RuntimeError("该模式需要搜索端点和 API Key。")
+        if mode == "elasticsearch" and (not elastic_index or not elastic_template):
+            raise RuntimeError("Elasticsearch 模式还需要 index 与 search template。")
+        external = types.ExternalApi(
+            api_spec="ELASTIC_SEARCH" if mode == "elasticsearch" else "SIMPLE_SEARCH",
+            endpoint=external_endpoint,
+            auth_config=types.AuthConfig(api_key=external_api_key),
+            elastic_search_params=(types.ExternalApiElasticSearchParams(
+                index=elastic_index, search_template=elastic_template
+            ) if mode == "elasticsearch" else None),
+            simple_search_params=(types.ExternalApiSimpleSearchParams() if mode == "external_search" else None),
+        )
+        tools = [types.Tool(retrieval=types.Retrieval(external_api=external))]
+        system = "只依据本次企业搜索 API 检索到的来源回答；找不到依据时明确说明。"
+    elif mode == "parallel_web":
+        if partner_provider == "exa":
+            if not partner_api_key:
+                raise RuntimeError("Exa Web Search 模式需要 Exa API Key。")
+            tools = [types.Tool(exa_ai_search=types.ToolExaAiSearch(api_key=partner_api_key))]
+        else:
+            tools = [types.Tool(parallel_ai_search=types.ToolParallelAiSearch(
+                api_key=partner_api_key or None
+            ))]
+        system = SYSTEM_SEARCH
+    elif mode == "enterprise_web":
+        tools = [types.Tool(enterprise_web_search=types.EnterpriseWebSearch(
+            exclude_domains=exclude_domains or None
+        ))]
+        system = SYSTEM_SEARCH
     elif mode == "image_search":
         tools = [types.Tool(google_search=_google_search_tool(mode))]
         system = SYSTEM_IMAGE_GEN
@@ -683,6 +742,22 @@ def parse_grounding(
         _apply_parsed_grounding(result, parsed)
         return result
 
+    # URL Context returns tool-specific metadata rather than
+    # Google Search's groundingMetadata. Surface it as source rows so the UI
+    # demonstrates the same inspectability principle.
+    url_meta = getattr(candidate, "url_context_metadata", None)
+    url_items = list(getattr(url_meta, "url_metadata", None) or []) if url_meta else []
+    if url_items:
+        result = GroundedResult(status="ok", mode=mode, demo_kind="text_qa", text=text, model=model, raw_usage=usage)
+        result.sources = [
+            {"index": i, "kind": "urlContext", "uri": getattr(x, "retrieved_url", None) or getattr(x, "url", None),
+             "title": getattr(x, "url", None), "status": getattr(x, "status", None)}
+            for i, x in enumerate(url_items)
+        ]
+        result.grounding_field_presence = {"urlContextMetadata": True}
+        result.grounding_metadata_raw = {"urlContextMetadata": result.sources}
+        return result
+
     if is_image_generation_mode(mode) and generated_images:
         return GroundedResult(
             status="ok",
@@ -806,6 +881,8 @@ def count_tokens_for_request(
     lat_lng: Optional[types.LatLng] = None,
     exclude_domains: Optional[list[str]] = None,
     gcs_paths: Optional[list[str]] = None,
+    agent_search_datastore: Optional[str] = None,
+    **grounding_options: Any,
 ) -> dict[str, Any]:
     effective_lat_lng = lat_lng if lat_lng is not None else _parse_lat_lng()
     contents = build_user_contents(
@@ -815,6 +892,8 @@ def count_tokens_for_request(
         mode=mode,
         lat_lng=effective_lat_lng,
         exclude_domains=exclude_domains,
+        agent_search_datastore=agent_search_datastore,
+        **grounding_options,
     )
     count_config = types.CountTokensConfig(
         system_instruction=gen_config.system_instruction,
@@ -869,6 +948,8 @@ def grounded_ask_stream(
     lat_lng: Optional[types.LatLng] = None,
     exclude_domains: Optional[list[str]] = None,
     gcs_paths: Optional[list[str]] = None,
+    agent_search_datastore: Optional[str] = None,
+    **grounding_options: Any,
 ) -> Iterator[dict[str, Any]]:
     """Yield SSE-friendly events: text_delta, grounding, usage, done."""
     if is_image_generation_mode(mode):
@@ -880,6 +961,8 @@ def grounded_ask_stream(
         mode=mode,
         lat_lng=effective_lat_lng,
         exclude_domains=exclude_domains,
+        agent_search_datastore=agent_search_datastore,
+        **grounding_options,
     )
     contents = build_user_contents(
         question, lat_lng=effective_lat_lng, gcs_paths=gcs_paths
@@ -936,12 +1019,16 @@ def grounded_ask(
     lat_lng: Optional[types.LatLng] = None,
     exclude_domains: Optional[list[str]] = None,
     gcs_paths: Optional[list[str]] = None,
+    agent_search_datastore: Optional[str] = None,
+    **grounding_options: Any,
 ) -> GroundedResult:
     effective_lat_lng = lat_lng if lat_lng is not None else _parse_lat_lng()
     config = _build_config(
         mode=mode,
         lat_lng=effective_lat_lng,
         exclude_domains=exclude_domains,
+        agent_search_datastore=agent_search_datastore,
+        **grounding_options,
     )
     last: Optional[GroundedResult] = None
 
@@ -956,7 +1043,9 @@ def grounded_ask(
                 "若无法检索到可靠信息，请明确说明未找到，不要猜测。"
             )
         else:
-            tool_name = "Google 网页+图片搜索" if mode == "search_hybrid" else "Google 搜索"
+            tool_name = {
+                "url_context": "URL Context",
+            }.get(mode, "Google 搜索")
             prompts.append(
                 question
                 + f"\n\n[系统补强] 请务必使用 {tool_name} 工具检索后再回答；"
@@ -992,12 +1081,19 @@ def verify_claims(
 ) -> str:
     source_lines = []
     for s in sources:
+        # A URI/title is only a citation pointer, not evidence the verifier can
+        # read.  The UI exposes this feature only when private retrieval
+        # returned an actual text excerpt.
+        excerpt = (s.get("text") or "").strip()
+        if not excerpt:
+            continue
         source_lines.append(
-            f"- [{s.get('index')}] ({s.get('kind')}) {s.get('title')} | {s.get('uri')}"
+            f"- [{s.get('index')}] ({s.get('kind')}) {s.get('title')} | {s.get('uri')}\n"
+            f"  证据正文：{excerpt[:4000]}"
         )
     prompt = (
         f"模型断言全文：\n{answer_text}\n\n"
-        f"来源列表：\n" + ("\n".join(source_lines) or "(空)") + "\n\n"
+        f"可用证据正文：\n" + ("\n".join(source_lines) or "(空)") + "\n\n"
         "请逐条核对关键事实句。"
     )
     response = client.models.generate_content(
@@ -1096,7 +1192,7 @@ def to_jsonable(result: GroundedResult) -> dict[str, Any]:
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Modern Vertex Gemini grounding demo (Search or Maps)"
+        description="Gemini Enterprise Agent Platform grounding demo"
     )
     parser.add_argument(
         "question",
@@ -1106,9 +1202,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=["search", "image_search", "search_hybrid", "maps"],
+        choices=["search", "image_search", "maps", "url_context", "agent_search", "rag_engine", "external_search", "elasticsearch", "parallel_web", "enterprise_web"],
         default="search",
-        help="Grounding: web search, image search, both, or googleMaps",
+        help="One of the ten Enterprise Grounding modes",
     )
     parser.add_argument(
         "--model",
@@ -1129,6 +1225,18 @@ def main(argv: Optional[list[str]] = None) -> int:
         default="",
         help="Comma-separated GCS object paths or gs:// URIs (Vertex multimodal)",
     )
+    parser.add_argument(
+        "--agent-search-datastore",
+        default=_env("AGENT_SEARCH_DATASTORE"),
+        help="Full Vertex AI Search data store resource name (Vertex AI only)",
+    )
+    parser.add_argument("--rag-corpus", default=None, help="Full Vertex RAG corpus resource name")
+    parser.add_argument("--external-endpoint", default=None, help="SIMPLE_SEARCH / Elasticsearch endpoint")
+    parser.add_argument("--external-api-key", default=None, help="API key for the external search endpoint")
+    parser.add_argument("--elastic-index", default=None, help="Elasticsearch index")
+    parser.add_argument("--elastic-template", default=None, help="Elasticsearch search template")
+    parser.add_argument("--partner-provider", choices=["parallel", "exa"], default="parallel")
+    parser.add_argument("--partner-api-key", default=None, help="Parallel / Exa API key")
     parser.add_argument("--stream", action="store_true", help="SSE stream to stdout")
     parser.add_argument(
         "--count-tokens",
@@ -1158,6 +1266,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         lat_lng = make_lat_lng(args.lat, args.lng)
 
     gcs_paths = parse_gcs_paths_csv(args.gcs or "")
+    grounding_options = {
+        "rag_corpus": args.rag_corpus or None,
+        "external_endpoint": args.external_endpoint or None,
+        "external_api_key": args.external_api_key or None,
+        "elastic_index": args.elastic_index or None,
+        "elastic_template": args.elastic_template or None,
+        "partner_provider": args.partner_provider,
+        "partner_api_key": args.partner_api_key or None,
+    }
     client = build_client()
 
     if args.count_tokens:
@@ -1169,6 +1286,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             lat_lng=lat_lng,
             exclude_domains=parse_exclude_domains_csv(args.exclude_domains or ""),
             gcs_paths=gcs_paths,
+            agent_search_datastore=args.agent_search_datastore or None,
+            **grounding_options,
         )
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
@@ -1182,6 +1301,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             lat_lng=lat_lng,
             exclude_domains=parse_exclude_domains_csv(args.exclude_domains or ""),
             gcs_paths=gcs_paths,
+            agent_search_datastore=args.agent_search_datastore or None,
+            **grounding_options,
         ):
             sys.stdout.write(format_sse(ev["event"], ev["data"]))
             sys.stdout.flush()
@@ -1196,13 +1317,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         lat_lng=lat_lng,
         exclude_domains=parse_exclude_domains_csv(args.exclude_domains or ""),
         gcs_paths=gcs_paths,
+        agent_search_datastore=args.agent_search_datastore or None,
+        **grounding_options,
     )
 
     if resolve_redirects and result.sources:
         result.sources = enrich_sources(result.sources, enabled=True)
 
     verify_text = None
-    if args.verify and result.status == "ok" and result.sources:
+    if args.verify and result.status == "ok" and any(
+        s.get("kind") == "retrievedContext" and s.get("text") for s in result.sources
+    ):
         verify_text = verify_claims(
             client,
             model=args.model,

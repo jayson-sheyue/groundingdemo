@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Grounding Demo · Search / Maps</title>
+  <title>Gemini Enterprise Grounding Lab</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -15,6 +15,9 @@
       --ok: #047857; --ok-soft: #d1fae5; --shadow: 0 18px 40px rgba(28,25,23,.08);
     }
     * { box-sizing: border-box; }
+    /* Author display rules for label/div otherwise override the browser's
+       default [hidden] rule, so mode-specific controls would remain visible. */
+    [hidden] { display: none !important; }
     body {
       margin: 0; color: var(--ink); font-family: "Source Sans 3", system-ui, sans-serif;
       background:
@@ -47,7 +50,7 @@
       padding: .2rem .55rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
     }
     label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .35rem; }
-    textarea, input[type=text] {
+    textarea, input[type=text], input[type=password], select {
       width: 100%; border: 1px solid var(--line); border-radius: 12px;
       padding: .75rem .9rem; font: inherit; background: #fff;
     }
@@ -144,6 +147,10 @@
       border-color: #99f6e4; background: linear-gradient(180deg, #f0fdfa, #fff);
     }
     .mode-banner h3 { margin: 0 0 .45rem; font-size: .98rem; }
+    .mode-guide { border-color: #bfdbfe; background: linear-gradient(180deg, #eff6ff, #fff); }
+    .mode-guide .guide-grid { display:grid; grid-template-columns: 1fr 1fr; gap:.45rem .9rem; }
+    .mode-guide strong { color: var(--ink); }
+    @media (max-width: 720px) { .mode-guide .guide-grid { grid-template-columns: 1fr; } }
     .workflow {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: .45rem;
       margin: .65rem 0 0; font-size: .82rem; text-align: center;
@@ -306,15 +313,20 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>Grounding Demo</h1>
+      <h1>Gemini Grounding Lab</h1>
       <p>
-        面向 <strong>Gemini 2.5+</strong>：网页 Search（文字问答 + 引用）、
-        <strong>Image Search 生图接地</strong>（搜真实参考图再生成）、Maps、流式与 GCS 多模态。
-        说明见 <a href="https://github.com/jayson-sheyue/groundingdemo/blob/main/learning_guide.md">learning_guide.md</a>。
+        基于 Gemini Enterprise Agent Platform：Google Search（含 Image Search）、Google Maps、URL Context 与私域 Agent Search。
+        每项都显示可核验的来源/工具元数据；完整教程与官方链接见下方能力目录。
       </p>
     </header>
 
-    <div class="explain-grid">
+    <section class="panel" style="margin-top:1.35rem">
+      <div class="panel-head">
+        <h2>全部 Grounding 能力速览</h2>
+        <span class="mono">10 种来源 / 10 个模式</span>
+      </div>
+      <p class="hint" style="margin-top:0">顶部每张卡片与下方“业务价值与适用场景”表一一对应；点击卡片中的官方入口可查看 Enterprise Agent Platform 文档。</p>
+    <div class="explain-grid" style="margin-top:.85rem">
       <article class="explain-card">
         <h3>Search（网页）· 文字问答</h3>
         <p>
@@ -341,7 +353,60 @@
         </p>
         <span class="tag">工具 = googleMaps</span>
       </article>
+      <article class="explain-card">
+        <h3>URL Context · 指定页面</h3>
+        <p>把公开网页或 PDF URL 直接放进问题。模型读取指定内容，可单独用，也可与 Google Search 联用补足最新信息。</p>
+        <a class="tag" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context" target="_blank" rel="noopener">官方 URL Context 文档 ↗</a>
+      </article>
+      <article class="explain-card">
+        <h3>Agent Search · Vertex 自有数据</h3>
+        <p>将 Gemini 接到 Vertex AI Search / Agent Search 的网站或企业文档数据源；可与 Google Search 组合扩展，但本 demo 单独展示可核验的私域 RAG。</p>
+        <a class="tag" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-vertex-ai-search" target="_blank" rel="noopener">官方 Agent Search 文档 ↗</a>
+      </article>
+      <article class="explain-card">
+        <h3>RAG Engine · 受管语料库</h3>
+        <p>为需要切块、向量检索、评估与数据生命周期控制的企业知识库提供可配置的托管 RAG。</p>
+        <a class="tag" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/ground-responses-using-rag" target="_blank" rel="noopener">适合复杂知识库 ↗</a>
+      </article>
+      <article class="explain-card">
+        <h3>自定义 Search API · 复用现有检索</h3>
+        <p>连接符合 SIMPLE_SEARCH 协议的内部搜索服务，无需迁移 CRM、工单或行业数据。</p>
+        <a class="tag" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-your-search-api" target="_blank" rel="noopener">适合既有搜索投资 ↗</a>
+      </article>
+      <article class="explain-card">
+        <h3>Elasticsearch · 既有 Elastic 索引</h3>
+        <p>直接为 Elastic 索引加上带引用的生成式问答，适用于文档、日志和商品检索摘要。</p>
+        <a class="tag" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-elasticsearch" target="_blank" rel="noopener">适合 Elastic 用户 ↗</a>
+      </article>
+      <article class="explain-card">
+        <h3>Parallel / Exa Web · 伙伴 Web 索引</h3>
+        <p>面向多跳研究与高时效 Web 任务的 LLM 优化检索，适合尽调、KYC 与深度研究。</p>
+        <a class="tag" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-parallel" target="_blank" rel="noopener">适合深度研究 ↗</a>
+      </article>
+      <article class="explain-card">
+        <h3>Enterprise Web · 合规 Web 索引</h3>
+        <p>在更受控的 Web 索引上获取时效信息，服务金融、医疗与公共部门等受监管场景。</p>
+        <a class="tag" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/web-grounding-enterprise" target="_blank" rel="noopener">适合合规研究 ↗</a>
+      </article>
     </div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin-top:0">能力、业务价值与适用场景</h2>
+      <p class="hint">选择原则：先按“事实来自哪里”选数据源，再按合规、时效和企业已有基础设施决定实现方式。所有模式均应向最终用户展示返回的引用与来源。</p>
+      <table class="compare-table"><thead><tr><th>能力 / 数据</th><th>业务价值</th><th>典型应用场景</th><th>前提与官方文档</th></tr></thead><tbody>
+        <tr><th>Google Search<br><span class="mono">公开实时 Web</span></th><td>用可核验的实时信息降低新闻、政策、价格与产品事实的过期风险。</td><td>研究助手、客户支持、竞品/市场动态、旅行与购物决策。</td><td>需展示 Search Suggestions 与引用。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>Image Search<br><span class="mono">真实视觉参考</span></th><td>让生成图参考现实世界外观，降低地标、建筑、商品视觉“想当然”。</td><td>营销创意、目的地预览、商品概念图、活动视觉素材。</td><td>Gemini 3.1 Flash Image 预览能力；必须提供归因。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search#grounding-with-google-image-search" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>Google Maps<br><span class="mono">Places（当前 SDK）</span></th><td>用可更新的地点信息提升本地推荐、履约和出行决策的可执行性。</td><td>门店导购、差旅助手、配送规划、周边补给与充电站推荐。</td><td>传入 lat/lng；Routing 需升级至支持该类型的 Enterprise SDK。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-maps" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>URL Context<br><span class="mono">指定网页 / PDF</span></th><td>把回答锚定到已知的权威材料，避免泛搜索带来的范围漂移。</td><td>合同/公告解读、研报对比、法规页面摘要、技术文档问答。</td><td>URL 须公开可抓取；取回内容计入输入 token。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>Agent Search<br><span class="mono">企业网站 / 文档</span></th><td>最快把已托管的企业知识转为带来源的问答，减少重复建 RAG 管道。</td><td>员工知识助手、产品手册问答、客户门户、企业站内搜索摘要。</td><td>需 Agent Search data store；最多 10 个来源。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-vertex-ai-search" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>RAG Engine<br><span class="mono">受管 corpus / 向量检索</span></th><td>在切块、检索、评估和数据治理上获得更细粒度的工程控制。</td><td>高价值知识库、复杂文档集合、需要检索质量调优的专业助手。</td><td>需创建 RAG corpus 并维护语料生命周期。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/ground-responses-using-rag" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>自定义 Search API<br><span class="mono">现有检索服务</span></th><td>复用既有权限、索引和领域检索投资，无需迁移数据。</td><td>CRM、工单、内部目录、行业数据库、已有检索平台。</td><td>endpoint 必须符合 SIMPLE_SEARCH 协议。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-your-search-api" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>Elasticsearch<br><span class="mono">既有 Elastic 索引</span></th><td>直接在既有 Elastic 数据资产上增加生成式问答与引用，不重建搜索栈。</td><td>日志/知识库分析、企业文档助手、商品与内容检索摘要。</td><td>需 endpoint、ApiKey、index 与 search template。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-elasticsearch" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>Parallel / Exa Web<br><span class="mono">伙伴 Web 索引</span></th><td>为多跳研究和高时效 Web 任务提供针对 LLM 优化的搜索数据。</td><td>深度行业研究、尽调、KYC、新闻分析、自动化研究代理。</td><td>需要 Marketplace 订阅或合作伙伴 API Key。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-parallel" target="_blank" rel="noopener">Parallel 文档 ↗</a></td></tr>
+        <tr><th>Enterprise Web<br><span class="mono">合规 Web 索引</span></th><td>在受监管环境中兼顾 Web 时效性与合规/数据控制诉求。</td><td>金融、医疗、公共部门的研究、政策与风险辅助决策。</td><td>索引范围较 Google Search 更受控。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/web-grounding-enterprise" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+      </tbody></table>
+    </section>
 
     <form class="panel" id="ask-form" method="post" action="/ask">
       <div class="composer">
@@ -364,8 +429,14 @@
       <div class="mode-row">
         <label><input type="radio" name="mode" value="search" {% if defaults.mode == 'search' %}checked{% endif %} /> Search（网页问答）</label>
         <label><input type="radio" name="mode" value="image_search" {% if defaults.mode == 'image_search' %}checked{% endif %} /> Image Search（生图接地）</label>
-        <label><input type="radio" name="mode" value="search_hybrid" {% if defaults.mode == 'search_hybrid' %}checked{% endif %} /> 混合（网页+图片检索 · 文字）</label>
         <label><input type="radio" name="mode" value="maps" {% if defaults.mode == 'maps' %}checked{% endif %} /> Maps（地点）</label>
+        <label><input type="radio" name="mode" value="url_context" {% if defaults.mode == 'url_context' %}checked{% endif %} /> URL Context（指定页面）</label>
+        <label><input type="radio" name="mode" value="agent_search" {% if defaults.mode == 'agent_search' %}checked{% endif %} /> Agent Search（Vertex 私域数据）</label>
+        <label><input type="radio" name="mode" value="rag_engine" {% if defaults.mode == 'rag_engine' %}checked{% endif %} /> RAG Engine</label>
+        <label><input type="radio" name="mode" value="external_search" {% if defaults.mode == 'external_search' %}checked{% endif %} /> 自定义 Search API</label>
+        <label><input type="radio" name="mode" value="elasticsearch" {% if defaults.mode == 'elasticsearch' %}checked{% endif %} /> Elasticsearch</label>
+        <label><input type="radio" name="mode" value="parallel_web" {% if defaults.mode == 'parallel_web' %}checked{% endif %} /> Parallel / Exa Web</label>
+        <label><input type="radio" name="mode" value="enterprise_web" {% if defaults.mode == 'enterprise_web' %}checked{% endif %} /> Enterprise Web</label>
       </div>
 
       <div id="mode-banner-search" class="mode-banner search-mode">
@@ -391,25 +462,22 @@
         </div>
       </div>
 
-      <div id="mode-banner-hybrid" class="mode-banner search-mode" hidden>
-        <h3>混合检索 · 仍是文字问答</h3>
-        <p class="hint" style="margin:0">
-          同时开 web + image 检索，回答仍是<strong>文字</strong>（可含网页与图片块来源）。
-          不是生图模式；要体验 Image Search 价值请选「生图接地」。
-        </p>
+      <div id="mode-guide" class="mode-banner mode-guide" aria-live="polite">
+        <h3 id="mode-guide-title">使用前检查</h3>
+        <div class="guide-grid">
+          <p class="hint" id="mode-guide-value" style="margin:0"></p>
+          <p class="hint" id="mode-guide-setup" style="margin:0"></p>
+        </div>
+        <p class="hint" id="mode-guide-action" style="margin:.55rem 0 0"></p>
+        <a class="tag" id="mode-guide-link" target="_blank" rel="noopener">打开官方前置条件 ↗</a>
       </div>
 
-      <p class="hint" id="mode-hint-global">
-        网页 Search → <code>web.uri</code>；Image Search 生图 → 输出 <code>inline_data</code> 图片 + 可选 <code>image.source_uri</code>。
-        <a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn#grounding-with-google-image-search" target="_blank" rel="noopener">官方文档 · Image Search</a>
-      </p>
-
-      <div id="exclude-box" class="geo-box" style="margin-top:.85rem">
-        <h3>排除域名 exclude_domains（网页 Search / 混合模式 · Vertex）</h3>
+      <div id="exclude-box" class="geo-box grounding-config" data-modes="search" style="margin-top:.85rem">
+        <h3>排除域名 exclude_domains（仅 Google Search · Vertex）</h3>
         <p class="hint" style="margin-top:0">
           写入 <code>GoogleSearch(exclude_domains=[...])</code>，检索时不使用这些域名做 grounding。
-          <strong>Vertex AI 支持</strong>；Gemini Developer API（API Key）官方标注不支持。
-          Maps 模式下此框无效。可填域名或粘贴 URL（会自动取主机名）。上限约 2000 个。
+          Enterprise Agent Platform 的 Google Search 配置；其余九种模式不使用此项。
+          可填域名或粘贴 URL（会自动取主机名）。上限约 2000 个。
         </p>
         <label for="exclude_domains">黑名单（逗号分隔）</label>
         <input
@@ -419,6 +487,26 @@
           value="{{ defaults.get('exclude_domains','') }}"
           placeholder="例如：spam.example, low-quality.com, https://www.facebook.com/page"
         />
+      </div>
+
+      <div id="agent-search-box" class="geo-box grounding-config" data-modes="agent_search" style="margin-top:.85rem">
+        <h3>Agent Search / Vertex AI Search data store（仅 Agent Search 模式）</h3>
+        <p class="hint" style="margin-top:0">填完整资源名，例如 <code>projects/PROJECT/locations/global/collections/default_collection/dataStores/DATASTORE</code>。此路径使用现有 Vertex 凭证。</p>
+        <label for="agent_search_datastore">Data store 资源名</label>
+        <input id="agent_search_datastore" name="agent_search_datastore" type="text" value="{{ defaults.get('agent_search_datastore','') }}" placeholder="projects/.../locations/global/collections/default_collection/dataStores/..." />
+      </div>
+      <div id="advanced-grounding-box" class="geo-box grounding-config" data-modes="rag_engine,external_search,elasticsearch,parallel_web" style="margin-top:.85rem">
+        <h3>企业 Grounding 连接配置</h3>
+        <p class="hint" style="margin-top:0">仅在对应模式下填写；密钥只随本次请求发送，不写入运行记录。各模式的前置条件见下方官方文档。</p>
+        <div class="row-3">
+          <div class="grounding-field" data-modes="rag_engine"><label for="rag_corpus">RAG corpus</label><input id="rag_corpus" name="rag_corpus" value="{{ defaults.get('rag_corpus','') or '' }}" placeholder="projects/.../ragCorpora/..." /></div>
+          <div class="grounding-field" data-modes="external_search,elasticsearch"><label for="external_endpoint">Search / Elastic endpoint</label><input id="external_endpoint" name="external_endpoint" value="{{ defaults.get('external_endpoint','') or '' }}" placeholder="https://search.example.com" /></div>
+          <div class="grounding-field" data-modes="external_search,elasticsearch"><label for="external_api_key">Search / Elastic API Key</label><input id="external_api_key" name="external_api_key" type="password" value="" autocomplete="off" placeholder="仅本次请求使用，不会回填或记录" /></div>
+          <div class="grounding-field" data-modes="elasticsearch"><label for="elastic_index">Elasticsearch index</label><input id="elastic_index" name="elastic_index" value="{{ defaults.get('elastic_index','') or '' }}" /></div>
+          <div class="grounding-field" data-modes="elasticsearch"><label for="elastic_template">Elasticsearch template</label><input id="elastic_template" name="elastic_template" value="{{ defaults.get('elastic_template','') or '' }}" /></div>
+          <div class="grounding-field" data-modes="parallel_web"><label for="partner_provider">伙伴 Web 引擎</label><select id="partner_provider" name="partner_provider"><option value="parallel">Parallel</option><option value="exa">Exa</option></select></div>
+          <div class="grounding-field" data-modes="parallel_web"><label for="partner_api_key">Parallel / Exa API Key</label><input id="partner_api_key" name="partner_api_key" type="password" value="" autocomplete="off" placeholder="仅本次请求使用，不会回填或记录" /></div>
+        </div>
       </div>
 
       <div class="row">
@@ -468,8 +556,8 @@
       </div>
 
       <div class="checks">
-        <label><input type="checkbox" name="verify" {% if defaults.get('verify') %}checked{% endif %} /> 二次核对（另一次请求：不搜网，只根据本轮来源判定 Supported/Unsupported）</label>
-        <label><input type="checkbox" name="resolve_redirects" value="on" {% if defaults.get('resolve_redirects') %}checked{% endif %} /> 解析 grounding redirect → 显示最终 URL（会多几次 HTTP 请求，略慢）</label>
+        <label id="verify-option" {% if defaults.mode not in ['agent_search', 'rag_engine', 'external_search', 'elasticsearch'] %}hidden{% endif %}><input type="checkbox" name="verify" {% if defaults.get('verify') %}checked{% endif %} /> 二次核对（仅私域检索返回正文片段时可用；不重新检索）</label>
+        <label id="redirect-option" {% if defaults.mode not in ['search', 'image_search'] %}hidden{% endif %}><input type="checkbox" name="resolve_redirects" value="on" {% if defaults.get('resolve_redirects') %}checked{% endif %} /> 解析 Google Search redirect → 显示最终 URL（仅 Search / Image Search；会增加 HTTP 请求）</label>
       </div>
 
       <div class="actions">
@@ -482,6 +570,10 @@
         <button type="button" class="ghost-btn" id="count-btn">统计输入 Token</button>
         <div id="token-estimate" class="token-estimate" style="display:none"></div>
         <span class="run-hint" id="run-hint">点击后立即进入加载态。</span>
+      </div>
+      <div class="hint" id="transport-note" style="margin-top:.7rem">
+        <strong>传输与来源：</strong>流式发送仅用于文本输出；Image Search 生图会隐藏该按钮。Google Search / Image Search 的来源可能是 Google redirect，可选解析最终 URL；Maps、URL Context 与私域/伙伴检索通常直接显示来源 URI。<br />
+        <strong>Metadata 不是完全同一格式：</strong>多数检索模式会返回 <code>groundingMetadata</code>（结构相近但查询字段、chunk 类型与引用支持会不同）；URL Context 使用独立的 <code>urlContextMetadata</code>。字段为空只表示该工具本轮未返回该类信息，并不自动等于请求失败。
       </div>
       <div class="running-box" id="running-box" role="status" aria-live="polite">
         <span class="spinner"></span>
@@ -595,7 +687,13 @@
             <div class="big">
               {% if view.mode == 'maps' %}googleMaps
               {% elif view.mode == 'image_search' %}imageSearch → 生图
-              {% elif view.mode == 'search_hybrid' %}googleSearch · web + image
+              {% elif view.mode == 'url_context' %}urlContext
+              {% elif view.mode == 'agent_search' %}vertexAiSearch · Agent Search
+              {% elif view.mode == 'rag_engine' %}vertexRagStore · RAG Engine
+              {% elif view.mode == 'external_search' %}externalApi · SIMPLE_SEARCH
+              {% elif view.mode == 'elasticsearch' %}externalApi · ELASTIC_SEARCH
+              {% elif view.mode == 'parallel_web' %}Parallel / Exa partner search
+              {% elif view.mode == 'enterprise_web' %}enterpriseWebSearch
               {% else %}googleSearch · webSearch{% endif %}
             </div>
             <p>
@@ -603,7 +701,13 @@
                 价值：用 Google 图片搜索获取<strong>真实视觉参考</strong>，再生成图片，减少地标/产品外观「瞎编」。
                 主产出是下方「生成的图片」，不是 Markdown 文字列表。
               {% elif view.mode == 'maps' %}依据 Google Maps 地点数据。
-              {% elif view.mode == 'search_hybrid' %}同时启用网页与图片检索，回答仍为文字。
+              {% elif view.mode == 'url_context' %}仅依据提示中明确给出的公开 URL；来源区展示取回结果。
+              {% elif view.mode == 'agent_search' %}依据 Vertex AI Search / Agent Search 数据源的私域检索。
+              {% elif view.mode == 'rag_engine' %}依据已配置的 Vertex RAG corpus 检索结果。
+              {% elif view.mode == 'external_search' %}依据自定义 SIMPLE_SEARCH 服务返回的来源。
+              {% elif view.mode == 'elasticsearch' %}依据已配置 Elasticsearch 索引和 template 的返回结果。
+              {% elif view.mode == 'parallel_web' %}依据已选 Parallel 或 Exa 伙伴检索；请遵守其数据处理条款。
+              {% elif view.mode == 'enterprise_web' %}依据 Enterprise Web 检索；可用性取决于项目授权。
               {% else %}依据公开网页搜索；来源为 web.uri，句子有高亮引用。{% endif %}
             </p>
           </div>
@@ -616,7 +720,7 @@
               <div class="big">未传坐标</div>
               <p>请求未带 retrievalConfig.latLng。</p>
             {% endif %}
-            {% if view.mode in ['search', 'search_hybrid'] %}
+            {% if view.mode == 'search' %}
               <p style="margin-top:.55rem">
                 排除域名：
                 {% if view.exclude_domains %}
@@ -688,7 +792,7 @@
         <h2>回答（引用来源高亮）</h2>
         <div class="answer">{{ view.answer_html }}</div>
 
-        {% if view.mode in ['search', 'search_hybrid'] %}
+        {% if view.mode == 'search' %}
         <h2>Google Search Suggestions</h2>
         {% if view.search_suggestions_html %}
           <div class="suggestions-box">
@@ -1046,7 +1150,12 @@
       const questionLabel = document.getElementById("question-label");
       const modeBannerSearch = document.getElementById("mode-banner-search");
       const modeBannerImage = document.getElementById("mode-banner-image");
-      const modeBannerHybrid = document.getElementById("mode-banner-hybrid");
+      const modeGuideTitle = document.getElementById("mode-guide-title");
+      const modeGuideValue = document.getElementById("mode-guide-value");
+      const modeGuideSetup = document.getElementById("mode-guide-setup");
+      const modeGuideAction = document.getElementById("mode-guide-action");
+      const modeGuideLink = document.getElementById("mode-guide-link");
+      const ENTERPRISE_DOCS = "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/";
 
       const MODE_DEFAULTS = {
         search: {
@@ -1063,13 +1172,6 @@
           qPlaceholder: "描述要生成的场景/主体，不要用「列出图片来源」式问答",
           modelHint: "必须 gemini-3.1-flash-image（生图模型）",
         },
-        search_hybrid: {
-          model: "gemini-2.5-flash",
-          question: "2026 年世界杯主办城市有哪些？请同时给出相关体育场示意图的来源。",
-          qLabel: "问题（文字 + 双检索）",
-          qPlaceholder: "仍是文字回答；不是生图模式",
-          modelHint: "推荐 gemini-2.5-flash",
-        },
         maps: {
           model: "gemini-2.5-flash",
           question: "这附近有什么口碑好的咖啡馆？",
@@ -1077,6 +1179,38 @@
           qPlaceholder: "例如：这附近有什么咖啡馆？",
           modelHint: "推荐 gemini-2.5-flash",
         },
+        url_context: {
+          model: "gemini-2.5-flash",
+          question: "请总结这个页面的关键能力与限制：https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context",
+          qLabel: "问题（必须包含公开 URL）",
+          qPlaceholder: "粘贴一个或多个公开网页/PDF URL，再说明希望提取、比较或总结什么",
+          modelHint: "Vertex AI；URL 取回状态会显示在来源区",
+        },
+        agent_search: {
+          model: "gemini-2.5-flash",
+          question: "请根据已选的 Agent Search 数据源，总结最关键的结论并列出依据。",
+          qLabel: "问题（Vertex 私域数据）",
+          qPlaceholder: "提问将从下方的 Agent Search data store 检索",
+          modelHint: "Vertex AI；需要完整的 Vertex AI Search data store 资源名",
+        },
+        rag_engine: { model: "gemini-2.5-flash", question: "请根据已配置的 RAG corpus 总结核心结论并列出依据。", qLabel: "问题（受管 RAG 语料库）", qPlaceholder: "将从下方 RAG corpus 检索", modelHint: "Vertex AI；需完整 RAG corpus 资源名" },
+        external_search: { model: "gemini-2.5-flash", question: "请根据企业搜索服务返回的资料回答，并列出依据。", qLabel: "问题（自定义 Search API）", qPlaceholder: "将调用下方 SIMPLE_SEARCH endpoint", modelHint: "Vertex AI；需 endpoint 与本次 API Key" },
+        elasticsearch: { model: "gemini-2.5-flash", question: "请根据 Elasticsearch 索引结果总结最重要的发现。", qLabel: "问题（Elasticsearch）", qPlaceholder: "将调用下方 Elastic endpoint / index / template", modelHint: "Vertex AI；需 endpoint、ApiKey、index、template" },
+        parallel_web: { model: "gemini-2.5-flash", question: "请研究这个主题，给出可核验的关键结论与来源：企业 AI agent 的最新趋势。", qLabel: "问题（伙伴 Web 检索）", qPlaceholder: "适合深度研究、尽调、KYC 等问题", modelHint: "Vertex AI；选择 Parallel 或 Exa，按供应商要求配置" },
+        enterprise_web: { model: "gemini-2.5-flash", question: "请基于 Enterprise Web 检索，总结这一监管主题的最新重点并列出来源。", qLabel: "问题（合规 Web 检索）", qPlaceholder: "适合受监管业务中的外部研究问题", modelHint: "Vertex AI；需确认项目可用性与配额" },
+      };
+
+      const MODE_GUIDES = {
+        search: { title:"Google Search：公开实时事实", value:"业务价值：让新闻、政策、价格和产品事实可追溯；结果必须向终端用户展示引用与 Search Suggestions。", setup:"前置条件：启用 Enterprise Agent Platform / Vertex AI 并使用项目凭证；不是 API Key 模式。", action:"操作：直接提问；如要排除低质量站点，可在下方填 exclude_domains。", link:ENTERPRISE_DOCS+"grounding-with-google-search" },
+        image_search: { title:"Image Search：真实视觉参考后生图", value:"业务价值：让地标、建筑、商品等画面参考真实世界，减少视觉幻觉。主产出是生成图，不是图片检索列表。", setup:"前置条件：需有资格使用 Gemini 3.1 Flash Image 预览能力；输出须保留模型返回的归因/来源。", action:"操作：描述要生成的画面；此模式不支持流式按钮，等待完整 inline 图片。", link:ENTERPRISE_DOCS+"grounding-with-google-search#grounding-with-google-image-search" },
+        maps: { title:"Google Maps：地点与本地决策", value:"业务价值：利用更新的地点、商户和地理信息，提升导购、履约和周边推荐的可执行性。", setup:"前置条件：使用 Vertex 项目凭证；“附近”问题建议提供 lat/lng。当前安装的 SDK 使用兼容的 Places 默认能力；Routing 需升级 SDK 后另行验证。", action:"操作：可用城市预设或“使用我的位置”；浏览器授权不等于设备一定能提供坐标。", link:ENTERPRISE_DOCS+"grounding-with-google-maps" },
+        url_context: { title:"URL Context：指定权威页面或 PDF", value:"业务价值：将答案锚定到已知材料，减少泛 Web 检索的范围漂移。", setup:"前置条件：URL/PDF 必须公开且可抓取；取回内容会计入输入 token，受页面访问限制时可能失败。", action:"操作：把一个或多个 URL 写在问题中，并说明要总结、对比或抽取什么。", link:"https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context" },
+        agent_search: { title:"Agent Search：已托管企业网站/文档", value:"业务价值：复用 Agent Search / Vertex AI Search 中已有的企业内容，快速提供带来源问答。", setup:"控制台准备：创建 data store、导入网站或文档、确认调用身份拥有 Discovery Engine 检索权限；本 demo 需要完整 data store 资源名。", action:"操作：先在下方填写 projects/.../dataStores/...；没有 data store 时此模式不能运行。", link:ENTERPRISE_DOCS+"grounding-with-vertex-ai-search" },
+        rag_engine: { title:"RAG Engine：受管语料库与向量检索", value:"业务价值：适合需要切块、检索调优、评估和数据生命周期治理的复杂知识库。", setup:"控制台/API 准备：创建 RAG corpus 并导入、解析语料；调用身份必须有对应 Vertex AI 权限。", action:"操作：在下方填写完整 ragCorpora 资源名；没有 corpus 或尚未导入内容时不能运行。", link:ENTERPRISE_DOCS+"ground-responses-using-rag" },
+        external_search: { title:"自定义 Search API：复用现有搜索服务", value:"业务价值：不迁移 CRM、工单或行业库，保留既有索引和权限体系。", setup:"集成准备：endpoint 必须符合 SIMPLE_SEARCH 协议，并可由运行服务网络访问；生产环境将密钥放入 Secret Manager，勿写入前端。", action:"操作：填写 endpoint 与仅本次使用的 API Key；请求数据会发送至你的搜索服务。", link:ENTERPRISE_DOCS+"grounding-with-your-search-api" },
+        elasticsearch: { title:"Elasticsearch：连接既有 Elastic 索引", value:"业务价值：在现有 Elastic 搜索资产上增加生成式问答和来源，而不重建索引。", setup:"集成准备：Elastic endpoint 需对运行环境网络可达；准备 ApiKey、index 与 search template；生产环境使用 Secret Manager。", action:"操作：四项配置缺一不可；API Key 不回填、不写入运行记录。", link:ENTERPRISE_DOCS+"grounding-with-elasticsearch" },
+        parallel_web: { title:"Parallel / Exa：伙伴 Web 检索", value:"业务价值：针对多跳研究、尽调、KYC 和高时效 Web 任务获得 LLM 优化的搜索结果。", setup:"商业前置：Parallel 通常需 Marketplace 订阅或自带供应商 API Key；Exa 需要其 API Key。使用自带 Key 时，查询会发送给对应合作伙伴；请先完成采购、数据评估与网络策略审查。", action:"操作：选择伙伴并填本次 API Key；没有订阅/Key 或组织禁止第三方数据传输时不能运行。", link:ENTERPRISE_DOCS+"grounding-with-parallel" },
+        enterprise_web: { title:"Enterprise Web：合规取向的 Web 检索", value:"业务价值：面向金融、医疗、公共部门等受监管业务，在更受控的 Web 索引上进行外部研究。", setup:"可用性前置：先确认项目、区域、计费与组织许可是否已开通该能力；它不是普通 Google Search 的替代开关。", action:"操作：若 API 返回可用性/权限错误，请按官方文档申请访问或联系 Google Cloud 支持，而非反复重试。", link:ENTERPRISE_DOCS+"web-grounding-enterprise" },
       };
 
       function currentMode() {
@@ -1089,29 +1223,59 @@
         const cfg = MODE_DEFAULTS[mode] || MODE_DEFAULTS.search;
         if (modeBannerSearch) modeBannerSearch.hidden = (mode !== "search");
         if (modeBannerImage) modeBannerImage.hidden = (mode !== "image_search");
-        if (modeBannerHybrid) modeBannerHybrid.hidden = (mode !== "search_hybrid");
+        const guide = MODE_GUIDES[mode] || MODE_GUIDES.search;
+        if (modeGuideTitle) modeGuideTitle.textContent = guide.title;
+        if (modeGuideValue) modeGuideValue.innerHTML = "<strong>价值：</strong>" + guide.value;
+        if (modeGuideSetup) modeGuideSetup.innerHTML = "<strong>开通 / 配置：</strong>" + guide.setup;
+        if (modeGuideAction) modeGuideAction.innerHTML = "<strong>本 demo 如何用：</strong>" + guide.action;
+        if (modeGuideLink) modeGuideLink.href = guide.link;
         if (questionLabel) questionLabel.textContent = cfg.qLabel;
         if (q) q.placeholder = cfg.qPlaceholder;
         if (modelHint) modelHint.textContent = cfg.modelHint;
-        if (streamBtn) {
-          streamBtn.disabled = (mode === "image_search");
-          streamBtn.title = mode === "image_search"
-            ? "生图模式不支持流式，请用「发送」"
-            : "";
-        }
+        refreshTransportUi(mode);
         if (forceDefaults) {
           if (modelInput) modelInput.value = cfg.model;
           if (q) q.value = cfg.question;
         }
         refreshExcludeBox();
+        refreshGroundingConfig(mode);
+      }
+
+      function refreshGroundingConfig(mode) {
+        document.querySelectorAll(".grounding-config, .grounding-field").forEach(function (el) {
+          const supported = (el.getAttribute("data-modes") || "").split(",");
+          const visible = supported.includes(mode);
+          el.hidden = !visible;
+          if (el.classList.contains("grounding-config")) el.style.display = visible ? "block" : "none";
+          if (el.classList.contains("grounding-field")) el.style.display = visible ? "block" : "none";
+        });
+      }
+
+      function refreshTransportUi(mode) {
+        const supportsStream = mode !== "image_search";
+        if (streamBtn) {
+          streamBtn.hidden = !supportsStream;
+          streamBtn.disabled = !supportsStream;
+          streamBtn.title = supportsStream
+            ? "文本输出模式可使用 SSE；实际可用性仍取决于所选模型和企业数据源配置"
+            : "Image Search 生图需等待完整 inline image，请使用「发送」";
+        }
+        const redirectOption = document.getElementById("redirect-option");
+        if (redirectOption) redirectOption.hidden = !(mode === "search" || mode === "image_search");
+        const verifyOption = document.getElementById("verify-option");
+        if (verifyOption) {
+          verifyOption.hidden = !["agent_search", "rag_engine", "external_search", "elasticsearch"].includes(mode);
+        }
       }
 
       function refreshExcludeBox() {
         var mode = document.querySelector('input[name="mode"]:checked');
         var box = document.getElementById("exclude-box");
         if (!box || !mode) return;
-        var on = (mode.value === "search" || mode.value === "search_hybrid");
+        var on = mode.value === "search";
         box.style.opacity = on ? "1" : "0.45";
+        var agentBox = document.getElementById("agent-search-box");
+        if (agentBox) agentBox.style.opacity = mode.value === "agent_search" ? "1" : "0.45";
       }
 
       function appendResolvedUrlHtml(html, label, url, resolved) {

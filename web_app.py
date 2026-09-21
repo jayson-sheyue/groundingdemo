@@ -197,6 +197,7 @@ def _default_form() -> dict[str, Any]:
         "geo_label": "",
         "exclude_domains": _env("EXCLUDE_DOMAINS"),
         "gcs_paths": "",
+        "agent_search_datastore": _env("AGENT_SEARCH_DATASTORE"),
         "resolve_redirects": env_resolve_redirects_default(),
     }
 
@@ -218,7 +219,8 @@ def _parse_ask_form() -> tuple[dict[str, Any], Optional[str]]:
     question = (request.form.get("question") or "").strip()
     model = (request.form.get("model") or _env("GEMINI_MODEL", "gemini-2.5-flash")).strip()
     mode_raw = (request.form.get("mode") or "search").strip()
-    _valid_modes = frozenset({"search", "image_search", "search_hybrid", "maps"})
+    # Keep this list in lockstep with the ten visible demo cards/radio buttons.
+    _valid_modes = frozenset({"search", "image_search", "maps", "url_context", "agent_search", "rag_engine", "external_search", "elasticsearch", "parallel_web", "enterprise_web"})
     mode: GroundingMode = mode_raw if mode_raw in _valid_modes else "search"  # type: ignore[assignment]
     do_verify = request.form.get("verify") == "on"
     do_retry = request.form.get("retry") == "on"
@@ -229,8 +231,21 @@ def _parse_ask_form() -> tuple[dict[str, Any], Optional[str]]:
     exclude_domains = parse_exclude_domains_csv(exclude_raw)
     gcs_raw = (request.form.get("gcs_paths") or "").strip()
     gcs_paths = parse_gcs_paths_csv(gcs_raw)
+    agent_search_datastore = (request.form.get("agent_search_datastore") or "").strip()
+    grounding_options = {key: (request.form.get(key) or "").strip() or None for key in (
+        "rag_corpus", "external_endpoint", "external_api_key", "elastic_index",
+        "elastic_template", "partner_api_key",
+        "partner_provider",
+    )}
     resolve_redirects = request.form.get("resolve_redirects") == "on"
 
+    # Never put credentials back into HTML after a POST.  ``_grounding_options``
+    # remains request-local for the call itself; only non-secret fields can be
+    # used to refill the form on validation/API errors.
+    public_grounding_options = {
+        key: value for key, value in grounding_options.items()
+        if key not in {"external_api_key", "partner_api_key"}
+    }
     defaults = {
         "model": model,
         "mode": mode,
@@ -242,6 +257,8 @@ def _parse_ask_form() -> tuple[dict[str, Any], Optional[str]]:
         "geo_label": geo_label,
         "exclude_domains": exclude_raw,
         "gcs_paths": gcs_raw,
+        "agent_search_datastore": agent_search_datastore,
+        **public_grounding_options,
         "resolve_redirects": resolve_redirects,
     }
 
@@ -272,11 +289,30 @@ def _parse_ask_form() -> tuple[dict[str, Any], Optional[str]]:
     defaults["_geo_meta"] = geo_meta
     defaults["_exclude_domains"] = exclude_domains
     defaults["_gcs_paths"] = gcs_paths
+    defaults["_agent_search_datastore"] = agent_search_datastore
+    defaults["_grounding_options"] = grounding_options
     return defaults, None
 
 
 def _mode_uses_exclude_domains(mode: GroundingMode) -> bool:
-    return mode in ("search", "search_hybrid")
+    return mode == "search"
+
+
+def _mode_uses_redirect_resolution(mode: GroundingMode) -> bool:
+    """Only Google Search / Image Search commonly return Google redirect URIs."""
+    return mode in ("search", "image_search")
+
+
+def _has_verifiable_retrieved_context(sources: list[dict[str, Any]]) -> bool:
+    """The second pass is only evidence-based when retrieval text is returned.
+
+    A title/URI alone (typical for web, Maps, and partner search) is not the
+    source content and must not be presented as a fact-checking input.
+    """
+    return any(
+        source.get("kind") == "retrievedContext" and bool(source.get("text"))
+        for source in sources
+    )
 
 
 @app.get("/")
@@ -336,6 +372,8 @@ def ask():
     geo_meta = defaults.get("_geo_meta") or {"enabled": False}
     exclude_domains = defaults.get("_exclude_domains") or []
     gcs_paths = defaults.get("_gcs_paths") or []
+    agent_search_datastore = defaults.get("_agent_search_datastore") or None
+    grounding_options = defaults.get("_grounding_options") or {}
     resolve_redirects = defaults.get("resolve_redirects", False)
 
     started = time.perf_counter()
@@ -350,9 +388,16 @@ def ask():
             lat_lng=lat_lng,
             exclude_domains=exclude_domains if _mode_uses_exclude_domains(mode) else None,
             gcs_paths=gcs_paths,
+            agent_search_datastore=agent_search_datastore,
+            **grounding_options,
         )
         verify_text = None
-        if do_verify and result.status == "ok" and result.sources and not is_image_generation_mode(mode):
+        if (
+            do_verify
+            and result.status == "ok"
+            and _has_verifiable_retrieved_context(result.sources)
+            and not is_image_generation_mode(mode)
+        ):
             verify_text = verify_claims(
                 client,
                 model=model,
@@ -368,7 +413,7 @@ def ask():
             geo=geo_meta,
             exclude_domains=exclude_domains if _mode_uses_exclude_domains(mode) else [],
             gcs_paths=gcs_paths,
-            resolve_redirects=resolve_redirects,
+            resolve_redirects=resolve_redirects and _mode_uses_redirect_resolution(mode),
         )
         push_history(
             {
@@ -432,6 +477,8 @@ def ask_stream():
     lat_lng = defaults.get("_lat_lng")
     exclude_domains = defaults.get("_exclude_domains") or []
     gcs_paths = defaults.get("_gcs_paths") or []
+    agent_search_datastore = defaults.get("_agent_search_datastore") or None
+    grounding_options = defaults.get("_grounding_options") or {}
     resolve_redirects = defaults.get("resolve_redirects", False)
 
     client = get_client()
@@ -447,10 +494,12 @@ def ask_stream():
                 lat_lng=lat_lng,
                 exclude_domains=exclude_domains if _mode_uses_exclude_domains(mode) else None,
                 gcs_paths=gcs_paths,
+                agent_search_datastore=agent_search_datastore,
+                **grounding_options,
             ):
                 event = ev.get("event")
                 data = dict(ev.get("data") or {})
-                if resolve_redirects and event in ("grounding", "done"):
+                if resolve_redirects and _mode_uses_redirect_resolution(mode) and event in ("grounding", "done"):
                     grounding = data.get("grounding") if event == "done" else data
                     if grounding:
                         g = dict(grounding)
@@ -490,6 +539,8 @@ def count_tokens():
             lat_lng=defaults.get("_lat_lng"),
             exclude_domains=defaults.get("_exclude_domains") if _mode_uses_exclude_domains(defaults["mode"]) else None,
             gcs_paths=defaults.get("_gcs_paths") or [],
+            agent_search_datastore=defaults.get("_agent_search_datastore") or None,
+            **(defaults.get("_grounding_options") or {}),
         )
         return jsonify(payload)
     except Exception as exc:  # noqa: BLE001
@@ -497,10 +548,12 @@ def count_tokens():
 
 
 def main() -> None:
-    host = os.getenv("WEB_HOST", "127.0.0.1")
-    port = int(os.getenv("WEB_PORT", "8080"))
+    # Cloud Run sets PORT; bind all interfaces there. Local default stays loopback.
+    port = int(os.getenv("PORT") or os.getenv("WEB_PORT", "8080"))
+    host = os.getenv("WEB_HOST") or ("0.0.0.0" if os.getenv("PORT") else "127.0.0.1")
+    debug = os.getenv("FLASK_DEBUG", "0" if os.getenv("PORT") else "1") == "1"
     print(f"Grounding demo UI → http://{host}:{port}")
-    app.run(host=host, port=port, debug=True)
+    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == "__main__":

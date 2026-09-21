@@ -1,6 +1,6 @@
-# Grounding 学习指南（Gemini 2.5+ / Vertex AI）
+# Grounding 学习指南（Gemini Enterprise Agent Platform）
 
-本仓库演示 **Vertex AI** 上当前代 Grounding：`googleSearch`（网页 / Image Search 生图 / 混合）、`googleMaps`、可选 `latLng`、SSE 流式、GCS 多模态、count-tokens、redirect 解析。  
+本仓库只演示 **Gemini Enterprise Agent Platform** 的 Grounding：`googleSearch`、Image Search 生图、`googleMaps`、`urlContext`、Agent Search、RAG Engine、自定义 Search API、Elasticsearch、Parallel / Exa Web 与 Enterprise Web，以及可选 `latLng`、SSE 流式、GCS 多模态、count-tokens、redirect 解析。
 **不包含**旧版 `confidenceScores` 阈值（Gemini 2.5+ 官方为空，应忽略）。
 
 > 快速上手：[README.md](./README.md)  
@@ -12,14 +12,20 @@
 
 大模型会“编”。Grounding 让回答先挂到**可核对的外部数据**上，再生成文字并尽量带回引用。
 
-本 demo 支持三种 grounding **工具族**（数据源不同）：
+本 demo 支持十种 grounding **数据源模式**（数据来源与前置条件不同）：
 
 | 模式 | API 工具 | 数据从哪来 | 典型问题 / 产出 |
 |------|----------|------------|-----------------|
 | Search（网页） | `googleSearch`（`webSearch`） | 公开网页 | 文字事实问答 + 引用高亮 |
 | Image Search（生图） | `googleSearch` + `imageSearch` + `responseModalities: IMAGE` | Google 图片索引 → **生成图** | 描述画面 → `inline_data` 图片 |
-| Search 混合 | `webSearch` + `imageSearch` | 网页 + 图片检索 | 文字回答，来源含 web/image 块 |
 | Maps | `googleMaps` | Google Maps 地点 | 附近门店、营业时间 |
+| URL Context | `urlContext` | 指定公开网页 / PDF | 已知权威材料的摘要、对比 |
+| Agent Search | `vertexAiSearch` | 已托管企业网站 / 文档 | 企业知识问答 |
+| RAG Engine | `vertexRagStore` | 受管 corpus | 可调优的企业 RAG |
+| 自定义 Search API | `externalApi` / `SIMPLE_SEARCH` | 自建检索服务 | CRM、工单、行业库 |
+| Elasticsearch | `externalApi` / `ELASTIC_SEARCH` | 既有 Elastic 索引 | 日志、文档、商品检索 |
+| Parallel / Exa Web | 合作伙伴工具 | 伙伴 Web 索引 | 研究、尽调、KYC |
+| Enterprise Web | `enterpriseWebSearch` | 合规取向 Web 索引 | 受监管外部研究 |
 
 另有第三样东西——**`latLng` 位置上下文**——见下一节。它**不是**第三种 grounding 工具。
 
@@ -184,6 +190,50 @@ Web UI：选 **Image Search（生图接地）** → 描述要生成的画面 →
 
 ---
 
+### 3.4 URL Context grounding · 指定来源页面
+
+当你已知权威网页、PDF 或文档 URL 时，URL Context 是比泛搜索更可控的接地方式：把 URL 和任务一起发给 Gemini，模型读取该页面后回答。响应会包含 URL 的取回状态及文本内 `url_citation`；被取回的页面内容会计入输入 token。它可与 Google Search 组合：URL 负责“指定材料”，Search 负责“补充最新公开信息”。
+
+```python
+config = types.GenerateContentConfig(
+    tools=[types.Tool(url_context=types.UrlContext())],
+)
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="总结此页面：https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context",
+    config=config,
+)
+```
+
+限制：只适合可公开访问且允许抓取的 URL；URL 安全检查失败时状态会标为 `unsafe`。官方：[URL Context](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context)。
+
+### 3.5 Agent Search / Vertex AI Search · Vertex 私域数据
+
+如果团队已在 Vertex AI Search（现为 Agent Search）中导入网站、PDF 或企业文档，可用该 data store 直接给 Gemini 接地。它使用 Vertex 凭证和完整 data store 资源名，适合生产级私域检索；官方允许最多 10 个数据源，并支持与 Google Search 组合。本 demo 采用单数据源模式，以便独立观察私域来源与回答。官方：[Grounding with Agent Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-vertex-ai-search)。
+
+```python
+tool = types.Tool(retrieval=types.Retrieval(
+    vertex_ai_search=types.VertexAISearch(
+        datastore="projects/PROJECT/locations/global/collections/default_collection/dataStores/DATASTORE"
+    )
+))
+```
+
+### 3.6 RAG Engine · 可配置的托管 RAG
+
+RAG Engine 是 Gemini Enterprise Agent Platform 的托管 RAG 服务，适合需要自行控制语料、切块、向量检索与评估策略的企业知识库。它与 Agent Search 的区别是：Agent Search 使用 Google 托管搜索引擎；RAG Engine 提供更可配置的 RAG 生命周期。实际接入前需创建 corpus，并在 Agent Studio 的 Grounding → Your data 中选择 RAG Engine。官方：[Ground responses using RAG](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/ground-responses-using-rag)。
+
+### 3.7–3.11 外部与合作伙伴数据源：先完成开通，再运行 demo
+
+| 模式 | 必须先准备什么 | 运行时数据边界 | 官方文档 |
+|---|---|---|---|
+| 自定义 Search API | 实现 `SIMPLE_SEARCH` endpoint；让运行服务可访问该 endpoint；生产密钥放 Secret Manager | 问题会发送到你的搜索服务 | [文档](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-your-search-api) |
+| Elasticsearch | 可达的 endpoint、`ApiKey`、index、search template；完成网络/防火墙审查 | 问题会发送到 Elastic 服务 | [文档](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-elasticsearch) |
+| Parallel / Exa | Parallel 的 Marketplace 订阅或供应商 key；Exa key；完成采购与第三方数据处理审查 | 自带 key 时问题会发送给相应合作伙伴 | [Parallel 文档](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-parallel) |
+| Enterprise Web | 确认项目/区域、计费、配额及组织许可已开通 | 使用更受控的 Web 索引 | [文档](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/web-grounding-enterprise) |
+
+这些不是 demo 可以绕过的限制。缺订阅、权限、网络连通性或控制台资源时，页面会保留配置指引并让 API 返回可诊断的错误；不要把生产密钥固化在表单、代码或运行记录中。
+
 ## 4. UI 上的降幻觉手段（必须看清：能做什么 / 不能做什么）
 
 下面与 Web UI（`python web_app.py`）**一一对应**。这些是**降低**胡说概率的工程手段，**不是**零幻觉保证。
@@ -192,7 +242,7 @@ Web UI：选 **Image Search（生图接地）** → 描述要生成的画面 →
 
 | # | UI 上你看到的 | 背后在做什么 | 降幻觉作用 | 明确局限 |
 |---|---------------|--------------|------------|----------|
-| 1 | **Search / Image / 混合 / Maps 单选** | `googleSearch`（web / image / 混合）或 `googleMaps` | 选对数据源，避免「用网页搜附近店 / 用地图查全球新闻 / 用图片搜纯文字事实」 | 选错模式仍会偏题 |
+| 1 | **10 项 Grounding 单选** | 选择与数据来源匹配的 Enterprise Grounding 工具 | 避免「用网页搜附近店 / 用地图查全球新闻 / 用私域库回答实时新闻」 | 选错模式仍会偏题；部分模式有开通前置 |
 | 2 | **latLng（城市芯片 / 浏览器定位）** | `toolConfig.retrievalConfig.latLng` + 提示词注入位置 | 本地题检索更贴；并避免模型嘴上说「没有位置」 | 坐标≠Maps 工具；Search+坐标仍可能出网页榜单 |
 | 3 | **缺 metadata 时重试** | 无 `grounding_metadata` 则强化提示再请求一次 | 减少「开了工具却没真搜」就当事实交卷 | 重试后仍可能 ungrounded |
 | 4 | **status = ok / ungrounded** | 解析是否存在 grounding 元数据 | 未接地时UI标黄，不当已核实 | 有 metadata ≠ 内容正确 |
@@ -202,7 +252,7 @@ Web UI：选 **Image Search（生图接地）** → 描述要生成的画面 →
 | 8 | **Google Search Suggestions** | 原样渲染 `searchEntryPoint.renderedContent` | 合规 + 用户可进 Google SERP 自查 | 仅 Search 模式；生产必须原样展示 |
 | 9 | **二次核对勾选** | 第二轮无 grounding，只根据来源判 Supported/Unsupported | 抓正文相对来源的夸大/编造 | **第二轮也会幻觉**，不能当终审 |
 | 10 | **运行记录** | 进程内保存 mode / geo / status / exclude | 便于对比实验 | 重启 Web 即清空 |
-| 11 | **排除域名（Search）** | `GoogleSearch(exclude_domains=[...])` | 降低噪声站 / 竞品站进入 grounding | **仅 Vertex**；Gemini API Key 路径不支持；Maps 模式无此参数 |
+| 11 | **排除域名（Search）** | `GoogleSearch(exclude_domains=[...])` | 降低噪声站 / 竞品站进入 grounding | Enterprise Agent Platform 的 Google Search 配置；Maps 模式无此参数 |
 | 12 | （代码内，UI 不单独开关）**System prompt** | 无来源不编造、冲突并列等 | 约束生成行为 | 提示词无法强制模型 100% 遵守 |
 | 13 | （代码内）**temperature=1.0** | 官方对 Search grounding 的建议配置 | 按官方推荐取值 | 不是「温度越低越准」 |
 | 14 | **解析 grounding redirect** | `redirect_resolve.py` 跟随 HTTPS 重定向 | 展示最终 URL（维基等） | 非 API 字段；部分站点会拒绝 HEAD |
@@ -227,7 +277,7 @@ types.Tool(
 
 | 问题 | 答案 |
 |------|------|
-| API 支持吗？ | **Vertex / 本仓库路径：支持。** SDK 写明 *not supported in Gemini API*（指 AI Studio / API Key 的 Gemini Developer API）。 |
+| Enterprise Agent Platform 支持吗？ | **支持。** 本仓库通过 Vertex 凭证调用 Enterprise Agent Platform。 |
 | 填什么？ | **域名**（如 `example.com`），不是完整文章 URL；UI 若粘贴 URL 会自动取主机名。 |
 | 上限 | 文档/SDK：默认最多约 **2000** 个域名。 |
 | Maps 能用吗？ | **不能**——这是 `googleSearch` 参数，与 Maps 工具无关。 |
@@ -422,7 +472,7 @@ Google Search grounding 成功
 https://vertexaisearch.cloud.google.com/grounding-api-redirect/...
 ```
 
-而非目标站直链。Vertex 与 Gemini API **均如此**，且 **无 `original_uri` 字段**（详见 [§9](#9-grounding-来源-url-与-redirect)）。
+而非目标站直链。Enterprise Agent Platform 的 grounding 响应通常如此，且 **无 `original_uri` 字段**（详见 [§9](#9-grounding-来源-url-与-redirect)）。
 
 **平台侧原因：** 统一归因、合规跳转、计费与滥用防护。  
 **集成侧处理：** redirect 链接可合规展示与点击；若需最终 URL，可选用 `--resolve-redirects`（`redirect_resolve.py`），此为**工程增强**，非 API 保证字段。
@@ -581,12 +631,12 @@ https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ...
 
 官方文档写明 Image 来源 **“are returned as redirect URLs”**（[§ Image Search Response](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn#grounding-with-google-image-search)）。
 
-### 9.2 Vertex vs Gemini API
+### 9.2 Enterprise Agent Platform 的来源 URI
 
 | 问题 | 答案 |
 |------|------|
-| 只有 Vertex 才 redirect 吗？ | **否。** Gemini Developer API（API Key）同样返回 `vertexaisearch.cloud.google.com` redirect。 |
-| API 有 `original_uri` 字段吗？ | **目前没有。** 社区有 [功能请求](https://discuss.ai.google.dev/t/feature-request-provide-actual-source-urls-in-grounding-metadata/107352)。 |
+| 本 demo 哪些模式要处理 redirect？ | 仅 Google Search 与 Image Search 可能返回 Google redirect URI；Maps、URL Context、私域和伙伴检索一般直接展示来源 URI。 |
+| 响应有 `original_uri` 字段吗？ | **目前没有。** 因此本 demo 将 redirect 解析作为可选展示能力。 |
 | `chunk.web.domain` 能用吗？ | 有时有域名提示，**不是**完整 URL。 |
 | 与其他产品对比？ | 部分搜索/问答产品直接暴露 citation URL；Google Search grounding 经统一 redirect 网关（归因、合规、计费）。 |
 
@@ -615,6 +665,12 @@ https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ...
 | 5 | [Grounding with Google Maps](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-maps) | `googleMaps`、地点数据 |
 | 6 | [GroundingMetadata（REST）](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingMetadata) | `webSearchQueries`、`groundingChunks`、`groundingSupports` |
 | 7 | [GroundingChunk（REST）](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingChunk) | `web` / `maps` / `image` 块结构 |
+| 8 | [Grounding with Agent Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-vertex-ai-search) | data store、企业网站/文档 |
+| 9 | [Ground responses using RAG](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/ground-responses-using-rag) | RAG corpus、语料生命周期 |
+| 10 | [Grounding with your search API](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-your-search-api) | `SIMPLE_SEARCH` endpoint |
+| 11 | [Grounding with Elasticsearch](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-elasticsearch) | Elastic endpoint、index、template |
+| 12 | [Grounding with Parallel](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-parallel) | Marketplace / 合作伙伴 key |
+| 13 | [Web Grounding for Enterprise](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/web-grounding-enterprise) | 合规取向 Web grounding |
 
 ### 10.2 Vertex AI 生成与多模态
 
@@ -651,7 +707,7 @@ https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ...
 
 | # | 链接 | 说明 |
 |---|------|------|
-| 24 | [Feature: actual source URLs](https://discuss.ai.google.dev/t/feature-request-provide-actual-source-urls-in-grounding-metadata/107352) | Gemini API 同样只有 redirect |
+| 24 | [Grounding API](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/grounding) | Enterprise Agent Platform grounding 响应参考 |
 | 25 | [python-genai #1512](https://github.com/googleapis/python-genai/issues/1512) | 维护者确认无 original URI 字段 |
 
 ---
@@ -671,4 +727,3 @@ https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ...
 | [§8](#8-sse-流式多模态-gcs-count-tokens) | 流式、GCS、Token |
 | [§9](#9-grounding-来源-url-与-redirect) | redirect URL 说明 |
 | [§10](#10-官方文档索引) | 官方文档全表 |
-

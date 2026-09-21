@@ -1,6 +1,6 @@
-# Grounding Demo（Gemini 2.5+ / Vertex AI）
+# Gemini Enterprise Agent Platform Grounding Lab
 
-Vertex AI + [`google-genai`](https://googleapis.github.io/python-genai/) 演示：**Google Search**（网页 / Image Search 生图 / 混合）、**Google Maps** grounding，以及 **latLng 位置上下文**、**SSE 流式**、**GCS 多模态**、**count-tokens**、**grounding redirect 解析**。
+本 demo 仅使用 **Gemini Enterprise Agent Platform（Vertex AI）** 的官方 Grounding 文档与 Vertex 凭证，展示十项能力：**Google Search、Image Search 生图、Google Maps、URL Context、Agent Search、RAG Engine、自定义 Search API、Elasticsearch、Parallel / Exa Web、Enterprise Web**，以及 `latLng`、SSE、GCS 多模态、Token 统计与 grounding metadata 可视化。
 
 - **不含**旧版 `confidenceScores` 阈值（Gemini 2.5+ 官方为空，应忽略）
 - **教程**：[learning_guide.md](./learning_guide.md)（概念、UI 对照、官方文档索引）
@@ -14,8 +14,14 @@ Vertex AI + [`google-genai`](https://googleapis.github.io/python-genai/) 演示�
 |------|-----|----------------|
 | 网页 Search grounding | `--mode search` | Search（网页问答） |
 | Image Search **生图**接地 | `--mode image_search` | Image Search（生图接地）→ `inline_data` 图片 |
-| 网页 + 图片检索（文字回答） | `--mode search_hybrid` | 混合模式 |
 | Maps grounding | `--mode maps` | Maps |
+| URL Context grounding | `--mode url_context` | URL Context（在问题中放公开 URL） |
+| Agent Search grounding | `--mode agent_search --agent-search-datastore projects/.../dataStores/...` | Vertex AI Search / Agent Search 私域数据 |
+| RAG Engine grounding | `--mode rag_engine --rag-corpus projects/.../ragCorpora/...` | RAG Engine（需已创建 corpus） |
+| 自定义 Search API | `--mode external_search --external-endpoint ...` | 自定义 Search API（需 SIMPLE_SEARCH endpoint） |
+| Elasticsearch | `--mode elasticsearch --external-endpoint ...` | Elasticsearch（需 endpoint / ApiKey / index / template） |
+| Parallel / Exa Web | `--mode parallel_web` | Parallel / Exa（需订阅或伙伴 key） |
+| Enterprise Web | `--mode enterprise_web` | Enterprise Web（需确认项目可用性） |
 | latLng 位置上下文 | `--lat` / `--lng` | 坐标 / 浏览器定位 |
 | 排除域名（Vertex） | `--exclude-domains` | 排除域名输入框 |
 | SSE 流式 | `--stream` | 流式发送 → `POST /ask/stream` |
@@ -34,8 +40,14 @@ Vertex AI + [`google-genai`](https://googleapis.github.io/python-genai/) 演示�
 |------|----------|--------|----------|
 | **search** | `gemini-2.5-flash` | 文字 + `groundingSupports` 高亮 | 事实、新闻、规格 |
 | **image_search** | `gemini-3.1-flash-image` | **生成图片** + 可选 `imageSearchQueries` | 生图前搜真实视觉参考 |
-| **search_hybrid** | `gemini-2.5-flash` | 文字 + web/image 来源块 | 既要网页又要图片检索 |
 | **maps** | `gemini-2.5-flash` | 文字 + Maps 来源 | 附近 POI、营业时间 |
+| **url_context** | `gemini-2.5-flash` | 指定 URL/PDF 的上下文 | 合同、公告、技术页摘要 |
+| **agent_search** | `gemini-2.5-flash` | 私域 data store 来源 | 已托管网站/文档问答 |
+| **rag_engine** | `gemini-2.5-flash` | corpus 检索来源 | 可调优的复杂知识库 |
+| **external_search** | `gemini-2.5-flash` | SIMPLE_SEARCH 来源 | CRM、工单、行业库 |
+| **elasticsearch** | `gemini-2.5-flash` | Elastic 检索来源 | 日志、文档、商品索引 |
+| **parallel_web** | `gemini-2.5-flash` | 伙伴 Web 来源 | 研究、尽调、KYC |
+| **enterprise_web** | `gemini-2.5-flash` | 合规 Web 来源 | 受监管外部研究 |
 
 **Image Search ≠ 网页 Search。** 前者是「搜参考图 → 生图」；后者是「搜网页 → 文字回答」。详见 [learning_guide §3.3](./learning_guide.md#33-image-search-grounding--生图与网页-search-不同)。
 
@@ -67,8 +79,11 @@ python demo_grounded_search.py "美国下一次可见的日全食是什么时候
 # Image Search 生图（默认示例 prompt + gemini-3.1-flash-image）
 python demo_grounded_search.py --mode image_search
 
-# 混合检索（文字问答）
-python demo_grounded_search.py "2026 世界杯主办城市" --mode search_hybrid
+# 指定权威页面 / PDF URL 接地
+python demo_grounded_search.py "总结这个页面：https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context" --mode url_context
+
+# Vertex AI Search / Agent Search 数据源接地
+python demo_grounded_search.py "产品的退款政策是什么？" --mode agent_search --agent-search-datastore projects/PROJECT/locations/global/collections/default_collection/dataStores/DATASTORE
 
 # Maps + 坐标 + 二次核对
 python demo_grounded_search.py "附近咖啡馆" --mode maps --lat 31.2304 --lng 121.4737 --verify
@@ -132,6 +147,9 @@ groundingdemo/
 | Google Search（含 Image Search） | [Grounding with Google Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn) |
 | Image Search 专节 | [§ Grounding with Google Image Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search?hl=zh-cn#grounding-with-google-image-search) |
 | Google Maps | [Grounding with Google Maps](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-maps) |
+| URL Context | [URL Context](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context) |
+| Agent Search / Vertex AI Search | [Grounding with Agent Search](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-vertex-ai-search) |
+| Enterprise Grounding API | [Grounding API](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/grounding) |
 | GroundingMetadata（REST） | [GroundingMetadata](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GroundingMetadata) |
 
 ### Vertex / SDK / 多模态
@@ -146,7 +164,7 @@ groundingdemo/
 
 ### 已知限制（来源 URL）
 
-Google Search / Image Search grounding 的 `uri` / `source_uri` / `image_uri` **通常为 redirect**（`vertexaisearch.cloud.google.com`），**Vertex 与 Gemini API 均如此**。本仓库提供可选解析；详见 [learning_guide §9](./learning_guide.md#9-grounding-来源-url-与-redirect)。
+Google Search / Image Search grounding 的 `uri` / `source_uri` / `image_uri` 在 Enterprise Agent Platform 中通常为 redirect（`vertexaisearch.cloud.google.com`）。本仓库提供可选解析；详见 [learning_guide §9](./learning_guide.md#9-grounding-来源-url-与-redirect)。
 
 ---
 
