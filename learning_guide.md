@@ -727,3 +727,37 @@ https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ...
 | [§8](#8-sse-流式多模态-gcs-count-tokens) | 流式、GCS、Token |
 | [§9](#9-grounding-来源-url-与-redirect) | redirect URL 说明 |
 | [§10](#10-官方文档索引) | 官方文档全表 |
+
+---
+
+## 11. 请求参数与结果排查实操
+
+打开 Web 的「第一次使用」和 `/api-reference`：前者是操作流程，后者根据运行中 `google-genai` SDK 列出类型、API 字段名和 SDK 原文说明。字段出现在 SDK 手册中不等于此 Demo 的表单已接入，亦不保证每种模型、区域、后端、API 版本均支持；请以相应官方文档和实际错误为准。Demo 使用的版本见 `requirements.txt`。
+
+### 11.1 逐次请求能设置什么
+
+| 模式 | UI 可选设置 | 如何理解 |
+|---|---|---|
+| 全部 | 问题、模型、temperature、max output tokens | 模型必须支持工具；留空的温度由 Demo 设为 1.0，其它留空参数不显式发送。不同模型支持范围可能不同。 |
+| Search | exclude domains、blocking confidence | 排除域名不等于只搜索某些网站。blocking confidence 是钓鱼风险拦截等级，不是相关性或回答可信度；留空时若设置了 `BLOCKING_CONFIDENCE` 环境变量则使用它。 |
+| Maps | lat/lng、widget | 坐标是用户位置上下文；widget 设置在当前 SDK 已被标记弃用，可能不再生效。本 Demo 使用默认 Places，未接入 Routing。 |
+| URL Context | 问题中的公开 URL | URL 取回信息在 `urlContextMetadata`，不与其他来源的 metadata 完全一致。 |
+| Agent Search | data store 或 engine、filter、max results | data store 与 engine 二选一；max results 为每次查询返回结果数，当前 API 为 1–10；filter 语法和数据配置依赖所选数据源。 |
+| RAG Engine | corpus、file IDs、top_k、距离或相似度阈值、metadata filter、hybrid alpha、重排类型和模型 | 这些是检索请求级设置。距离和相似度阈值互斥；CEL 过滤依赖导入的元数据。Hybrid 在所述 RAG API 中仅支持 Weaviate；重排模型能力及收费需确认。 |
+| 自定义 Search API / Elasticsearch | endpoint、API key、Elastic index/template/num hits | 外部服务需支持对应协议并允许服务端访问；密钥仅本次请求使用，不回填。 |
+| Parallel / Exa / Enterprise Web | 伙伴选择及可选密钥、或企业 Web 模式 | 取决于项目权限、商业订阅、区域和提供方配置；Demo 没有覆盖这些 API 的每一个高级选项。 |
+
+检索语言 `retrievalConfig.languageCode` 在通用设置中，支持情况取决于选用的工具。`latLng` 提供的位置上下文不等于启用 Maps 工具。
+
+### 11.2 一次请求的结果怎么看
+
+1. **回答本身**：`candidates[].content` 是模型输出，并不天然真实。`finishReason` 可以辅助判断生成为何结束，例如输出被截断。
+2. **来源**：`groundingChunks` 包含可能的 `web`、`image`、`maps` 或 `retrievedContext`；URI、标题、正文等不是每种来源都返回。
+3. **引用关系**：`groundingSupports[].segment` 是回答中的文字区间，`groundingChunkIndices` 指向来源数组。区间索引按 UTF-8 字节计算，结束位置不包含在内。引用关系并非事实正确性保证。
+4. **工具专有字段**：`webSearchQueries` 和 `imageSearchQueries` 分别对应搜索类型；`retrievalQueries`、`retrievalMetadata`、Maps widget 令牌按服务实际返回。URL Context 的 `urlContextMetadata` 单独查看。
+5. **用量和结束状态**：`usageMetadata` 是服务报告的 token 用量，不等于完整费用；Demo 的成本估算需要配置价格，未覆盖所有工具或服务费用。
+6. **查看数据**：普通“发送”的结果支持查看整理视图、SDK groundingMetadata 以及 SDK 响应对象（非空字段；省略 HTTP 响应头和内嵌二进制媒体）。流式模式展示最后一个带元数据的事件，分批结果不保证完整合并。
+
+没有 metadata 不等于可以断言检索没有发生；没有来源也不一定代表请求报错。需要区分检索、召回片段、生成引用和答案是否有依据。排查时先用同一 corpus、问题与参数单独调用 `retrieveContexts`，核对结果及分数，再检查生成请求和输出；这不能证明另一次调用的内部检索结果完全相同。
+
+参考：[RAG Engine API](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/rag-api) · [RAG 输出字段](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/rag-output-explained) · [GroundingMetadata REST](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1/GroundingMetadata)

@@ -36,6 +36,10 @@
 
 普通「发送」可选择在未获得来源元数据时追加提示并再尝试一次；这会产生额外模型调用和费用，不保证检索或引用成功。流式发送不使用该重试选项。
 
+Web 界面的「第一次使用」提供操作流程；`/api-reference` 从当前安装的 `google-genai` SDK 动态列出主要 Grounding 请求和响应类型字段及版本。SDK 字段存在不保证服务或本 Demo UI 支持，实际可用性取决于模型、区域、后端与项目权限。普通结果的 SDK 快照保留非空 grounding metadata 字段；流式快照只代表最后收到的一个带元数据事件，不保证包含所有片段。
+
+RAG 检索配置按请求生效：界面支持 `top_k`、文件 ID、距离或相似度阈值（互斥）、CEL metadata filter、Weaviate hybrid alpha、Rank Service/LLM 重排；Agent Search 支持 data store 或 engine、filter/max results；Elasticsearch 支持 num hits；Search 支持钓鱼风险拦截等级；Maps widget 字段已被 SDK 标记为弃用。共同选项包括语言、temperature 和最大输出 token。除 temperature 留空时 Demo 设为 1.0 外，留空表示 Demo 不显式设置（不等于某个确定的默认值）；配置和响应详见 [learning_guide.md](./learning_guide.md)。
+
 ---
 
 ## 模式对比（必读）

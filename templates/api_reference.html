@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grounding 参数与返回字段参考</title>
+<style>body{font:16px/1.65 system-ui,sans-serif;color:#292524;background:#faf7f2;margin:0}main{max-width:1050px;margin:auto;padding:2rem 1rem}section{background:#fff;border:1px solid #e7e5e4;border-radius:14px;margin:1rem 0;padding:1rem}a{color:#0f766e}code{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f5f4;padding:1rem;border-radius:8px}table{border-collapse:collapse;width:100%;table-layout:fixed}td,th{padding:.5rem;border-bottom:1px solid #eee;text-align:left;vertical-align:top;overflow-wrap:anywhere}th:first-child{width:28%}small{color:#57534e}details{margin:.5rem 0}nav a{display:inline-block;margin:.25rem .6rem .25rem 0}</style></head>
+<body><main><p><a href="/">← 返回 Grounding Demo</a></p><h1>Grounding 参数与返回字段参考</h1>
+<p>当前服务器的 <code>google-genai {{ sdk_version }}</code> SDK 定义如下。表格由 SDK 类型动态生成；字段原文来自 SDK，主要概念的中文解释见下方。<strong>SDK 中存在某字段不代表本 Demo 的界面已提供输入，也不保证当前模型、区域或服务支持。</strong>未在界面配置的字段不会自动随请求发送。</p>
+<section><h2>先建立整体认识</h2><ol><li>选择数据源和问题：Google Search 面向网页；Maps 面向地点；URL Context 读取指定 URL；Agent Search 与 RAG Engine 使用你的数据；其他模式连接各自的搜索后端。</li><li>请求：<code>GenerateContentConfig.tools</code> 选择工具，<code>ToolConfig.retrieval_config</code> 提供可选语言/坐标；RAG 检索选项在 <code>VertexRagStore.rag_retrieval_config</code> 中。留空表示 Demo 不显式设置，服务默认行为可能不同。</li><li>响应：<code>candidates[].content</code> 是生成内容；<code>grounding_metadata</code> 描述来源和引用；URL Context 使用独立的 <code>url_context_metadata</code>；<code>usage_metadata</code> 是用量。</li></ol>
+<p><code>grounding_chunks</code> 是来源块；<code>grounding_supports</code> 将答案中的片段关联到来源索引；<code>segment.start_index/end_index</code> 是 UTF-8 字节偏移。检索词与辅助字段因工具、模型和响应而异。字段为空不能单独证明未检索，引用也不保证内容正确。</p>
+<p>当前 UI 已接入模型、问题、重试、坐标、检索语言、temperature、max output tokens，以及各模式连接项；Search 排除域名；Maps widget；Agent Search 的 filter/max_results；RAG 的 top_k、文件 ID、距离或相似度阈值、元数据过滤、Weaviate hybrid alpha 和重排配置。其它表中字段为 SDK 参考，未必由本 Demo 透传。</p>
+<p><strong>查看源数据：</strong>普通发送的结果区提供“SDK 返回的 groundingMetadata 全字段”；它是 SDK 解析后的非空字段，不是 HTTP 原始报文。二进制以 Base64 展示。流式模式显示最后一个包含 metadata 的事件，部分结果可能分批到达。</p>
+<p><a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/rag-api" target="_blank" rel="noopener">RAG Engine 官方参数</a> · <a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1/GroundingMetadata" target="_blank" rel="noopener">GroundingMetadata 官方字段</a> · <a href="https://googleapis.github.io/python-genai/" target="_blank" rel="noopener">Python SDK 文档</a></p></section>
+<section><h2>最小 Python 示例：先搜索，再查看来源</h2><p>需安装 google-genai、配置项目与身份；模型 ID 需替换为项目可用且支持工具的模型。</p><pre><code>from google import genai
+from google.genai import types
+
+client = genai.Client(vertexai=True, project="PROJECT_ID", location="global")
+response = client.models.generate_content(
+    model="MODEL_ID",
+    contents="请解释什么是 grounding，并列出来源。",
+    config=types.GenerateContentConfig(
+        tools=[types.Tool(google_search=types.GoogleSearch())]
+    ),
+)
+print(response.text)  # 生成回答
+for candidate in response.candidates or []:
+    gm = candidate.grounding_metadata
+    if gm:
+        print(gm.grounding_chunks)    # 来源块
+        print(gm.grounding_supports)  # 回答片段与来源的对应关系</code></pre>
+<p>替换工具即可改变数据源：Maps 使用 <code>types.Tool(google_maps=types.GoogleMaps())</code>；URL Context 使用 <code>types.Tool(url_context=types.UrlContext())</code> 并在问题中提供公开 URL。模式、模型兼容性和返回字段需以官方文档为准。</p></section>
+<section><h2>RAG 请求示例：检索参数逐次设置</h2><p>先创建 corpus 并导入文件。<code>top_k</code> 是数量上限，距离阈值只保留距离小于指定值的片段；0.5 仅作示例，不能视为正确率或通用推荐。</p><pre><code>rag_tool = types.Tool(
+    retrieval=types.Retrieval(
+        vertex_rag_store=types.VertexRagStore(
+            rag_resources=[types.VertexRagStoreRagResource(
+                rag_corpus="projects/PROJECT/locations/REGION/ragCorpora/CORPUS"
+            )],
+            rag_retrieval_config=types.RagRetrievalConfig(
+                top_k=10,  # 最多返回的候选片段数
+                filter=types.RagRetrievalConfigFilter(
+                    vector_distance_threshold=0.5  # 示例；按数据评测调参
+                ),
+            ),
+        )
+    )
+)
+response = client.models.generate_content(
+    model="MODEL_ID", contents="问题", 
+    config=types.GenerateContentConfig(tools=[rag_tool]),
+)</code></pre><p>要排查检索与生成各自的问题，可先单独调用 <code>retrieveContexts</code> 检查片段和分数，再比较生成响应；单独检索成功不能证明另一次生成请求一定用了相同片段。</p></section>
+<section><h2>按类型浏览 SDK 字段</h2><p>字段说明保留 SDK 原文，具体取值与可用性以官方文档为准；不同 SDK 版本可能增删字段。</p><nav>{% for entry in entries %}<a href="#{{ entry.name }}">{{ entry.name }}</a>{% endfor %}</nav></section>
+{% for entry in entries %}<section id="{{ entry.name }}"><h2><code>{{ entry.name }}</code></h2><table><thead><tr><th>Python 字段 / API 名</th><th>SDK 说明</th></tr></thead><tbody>{% for f in entry.fields %}<tr><td><code>{{ f.name }}</code>{% if f.alias and f.alias != f.name %}<br><small>API: <code>{{ f.alias }}</code></small>{% endif %}</td><td>{{ f.description }}</td></tr>{% endfor %}</tbody></table></section>{% endfor %}
+</main></body></html>

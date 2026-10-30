@@ -257,6 +257,8 @@ class GroundedResult:
     search_entry_point: Optional[dict[str, Any]] = None
     grounding_field_presence: dict[str, bool] = field(default_factory=dict)
     grounding_metadata_raw: Optional[dict[str, Any]] = None
+    grounding_metadata_api: Optional[dict[str, Any]] = None
+    response_sdk: Optional[dict[str, Any]] = None
     warning: Optional[str] = None
     raw_usage: Optional[dict[str, Any]] = None
 
@@ -416,6 +418,7 @@ def _google_search_tool(
     mode: GroundingMode,
     *,
     exclude_domains: Optional[list[str]] = None,
+    blocking_confidence: Optional[str] = None,
 ) -> types.GoogleSearch:
     """Build GoogleSearch tool for web, image, or hybrid search types."""
     if mode == "image_search":
@@ -427,7 +430,7 @@ def _google_search_tool(
     domains = exclude_domains if exclude_domains is not None else _parse_exclude_domains()
     return types.GoogleSearch(
         exclude_domains=domains or None,
-        blocking_confidence=_parse_blocking_confidence(),
+        blocking_confidence=types.PhishBlockThreshold(blocking_confidence) if blocking_confidence else _parse_blocking_confidence(),
     )
 
 
@@ -444,6 +447,23 @@ def _build_config(
     elastic_template: Optional[str] = None,
     partner_api_key: Optional[str] = None,
     partner_provider: Optional[str] = None,
+    rag_top_k: Optional[int] = None,
+    rag_distance: Optional[float] = None,
+    rag_similarity: Optional[float] = None,
+    rag_metadata_filter: Optional[str] = None,
+    rag_file_ids: Optional[str] = None,
+    rag_hybrid_alpha: Optional[float] = None,
+    rag_ranker_type: Optional[str] = None,
+    rag_ranker_model: Optional[str] = None,
+    agent_filter: Optional[str] = None,
+    agent_max_results: Optional[int] = None,
+    agent_engine: Optional[str] = None,
+    elastic_num_hits: Optional[int] = None,
+    search_blocking_confidence: Optional[str] = None,
+    retrieval_language: Optional[str] = None,
+    maps_enable_widget: Optional[bool] = None,
+    temperature: Optional[float] = None,
+    max_output_tokens: Optional[int] = None,
 ) -> types.GenerateContentConfig:
     """Build generateContent config for modern Search or Maps grounding.
 
@@ -454,32 +474,59 @@ def _build_config(
     """
     effective = lat_lng if lat_lng is not None else _parse_lat_lng()
     tool_config = None
-    if effective is not None:
+    if effective is not None or retrieval_language:
         tool_config = types.ToolConfig(
-            retrieval_config=types.RetrievalConfig(lat_lng=effective)
+            retrieval_config=types.RetrievalConfig(lat_lng=effective, language_code=retrieval_language)
         )
 
     if mode == "maps":
         # The installed Enterprise SDK exposes GoogleMaps but not the newer
         # Places/Routing subtype classes. Use the compatible Places default.
-        tools = [types.Tool(google_maps=types.GoogleMaps())]
+        tools = [types.Tool(google_maps=types.GoogleMaps(enable_widget=maps_enable_widget))]
         system = SYSTEM_MAPS
     elif mode == "url_context":
         tools = [types.Tool(url_context=types.UrlContext())]
-        system = SYSTEM_SEARCH
+        system = "依据 URL Context 实际取回的页面内容回答；页面不可访问或没有依据时明确说明，不要编造来源。"
     elif mode == "agent_search":
-        if not agent_search_datastore:
-            raise RuntimeError("Agent Search 模式需要完整的 Vertex AI Search data store 资源名。")
+        if bool(agent_search_datastore) == bool(agent_engine):
+            raise RuntimeError("Agent Search 模式需要填写 data store 或 engine 资源名，二选一。")
         tools = [types.Tool(retrieval=types.Retrieval(
-            vertex_ai_search=types.VertexAISearch(datastore=agent_search_datastore)
+            vertex_ai_search=types.VertexAISearch(datastore=agent_search_datastore, engine=agent_engine, filter=agent_filter, max_results=agent_max_results)
         ))]
         system = """你是企业知识库问答助手。只依据本次 Agent Search/Vertex AI Search
 检索到的内容作答；找不到依据时明确说明，禁止用训练知识补全。"""
     elif mode == "rag_engine":
         if not rag_corpus:
             raise RuntimeError("RAG Engine 模式需要完整的 RAG corpus 资源名。")
+        if rag_distance is not None and rag_similarity is not None:
+            raise ValueError("距离阈值和相似度阈值只能选择一个。")
+        if bool(rag_ranker_type) != bool(rag_ranker_model):
+            raise ValueError("重排类型与模型名必须同时填写。")
+        if rag_ranker_type not in (None, "rank_service", "llm_ranker"):
+            raise ValueError("不支持的重排类型。")
+        # Retrieval configuration belongs to each request, not the corpus.
+        rag_filter = None
+        if rag_distance is not None or rag_similarity is not None or rag_metadata_filter:
+            rag_filter = types.RagRetrievalConfigFilter(
+                vector_distance_threshold=rag_distance,
+                vector_similarity_threshold=rag_similarity,
+                metadata_filter=rag_metadata_filter,
+            )
+        ranker = None
+        if rag_ranker_type == "rank_service":
+            ranker = types.RagRetrievalConfigRanking(rank_service=types.RagRetrievalConfigRankingRankService(model_name=rag_ranker_model))
+        elif rag_ranker_type == "llm_ranker":
+            ranker = types.RagRetrievalConfigRanking(llm_ranker=types.RagRetrievalConfigRankingLlmRanker(model_name=rag_ranker_model))
+        rag_config = None
+        if any(x is not None for x in (rag_top_k, rag_filter, rag_hybrid_alpha, ranker)):
+            rag_config = types.RagRetrievalConfig(
+                top_k=rag_top_k, filter=rag_filter, ranking=ranker,
+                hybrid_search=types.RagRetrievalConfigHybridSearch(alpha=rag_hybrid_alpha) if rag_hybrid_alpha is not None else None,
+            )
+        file_ids = [x.strip() for x in (rag_file_ids or "").split(",") if x.strip()]
         tools = [types.Tool(retrieval=types.Retrieval(vertex_rag_store=types.VertexRagStore(
-            rag_resources=[types.VertexRagStoreRagResource(rag_corpus=rag_corpus)]
+            rag_resources=[types.VertexRagStoreRagResource(rag_corpus=rag_corpus, rag_file_ids=file_ids or None)],
+            rag_retrieval_config=rag_config,
         )))]
         system = "只依据本次 RAG Engine 取回的企业语料回答；没有依据时明确说明。"
     elif mode in ("external_search", "elasticsearch"):
@@ -492,7 +539,7 @@ def _build_config(
             endpoint=external_endpoint,
             auth_config=types.AuthConfig(api_key=external_api_key),
             elastic_search_params=(types.ExternalApiElasticSearchParams(
-                index=elastic_index, search_template=elastic_template
+                index=elastic_index, search_template=elastic_template, num_hits=elastic_num_hits
             ) if mode == "elasticsearch" else None),
             simple_search_params=(types.ExternalApiSimpleSearchParams() if mode == "external_search" else None),
         )
@@ -507,29 +554,31 @@ def _build_config(
             tools = [types.Tool(parallel_ai_search=types.ToolParallelAiSearch(
                 api_key=partner_api_key or None
             ))]
-        system = SYSTEM_SEARCH
+        system = "依据本次伙伴 Web 搜索实际返回的来源回答；没有可靠依据时明确说明，不要编造来源。"
     elif mode == "enterprise_web":
         tools = [types.Tool(enterprise_web_search=types.EnterpriseWebSearch(
             exclude_domains=exclude_domains or None
         ))]
-        system = SYSTEM_SEARCH
+        system = "依据本次 Enterprise Web 搜索实际返回的来源回答；没有可靠依据时明确说明，不要编造来源。"
     elif mode == "image_search":
         tools = [types.Tool(google_search=_google_search_tool(mode))]
         system = SYSTEM_IMAGE_GEN
         return types.GenerateContentConfig(
             system_instruction=system,
-            temperature=1.0,
+            temperature=temperature if temperature is not None else 1.0,
+            max_output_tokens=max_output_tokens,
             tools=tools,
             tool_config=tool_config,
             response_modalities=["TEXT", "IMAGE"],
         )
     else:
-        tools = [types.Tool(google_search=_google_search_tool(mode, exclude_domains=exclude_domains))]
+        tools = [types.Tool(google_search=_google_search_tool(mode, exclude_domains=exclude_domains, blocking_confidence=search_blocking_confidence))]
         system = SYSTEM_SEARCH
 
     return types.GenerateContentConfig(
         system_instruction=system,
-        temperature=1.0,  # official recommendation for Search grounding
+        temperature=temperature if temperature is not None else 1.0,
+        max_output_tokens=max_output_tokens,
         tools=tools,
         tool_config=tool_config,
     )
@@ -698,6 +747,35 @@ def _apply_parsed_grounding(result: GroundedResult, parsed: ParsedGroundingMetad
     result.grounding_metadata_raw = parsed.to_raw_dict()
 
 
+def _sdk_metadata_snapshot(value: Any) -> Optional[dict[str, Any]]:
+    """JSON-safe SDK object; binary SDK fields are represented as base64."""
+    if not hasattr(value, "model_dump"):
+        return None
+    def encode_extra(item: Any) -> str:
+        if isinstance(item, bytes):
+            return base64.b64encode(item).decode("ascii")
+        return str(item)
+    return json.loads(json.dumps(value.model_dump(by_alias=True, exclude_none=True), default=encode_extra, ensure_ascii=False))
+
+
+def _sdk_response_snapshot(response: Any) -> Optional[dict[str, Any]]:
+    """Expose the SDK response while avoiding huge inline media and HTTP headers."""
+    if not hasattr(response, "model_dump"):
+        return None
+    raw = response.model_dump(by_alias=True, exclude_none=True, exclude={"sdk_http_response"})
+    def clean(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {k: ("[二进制媒体已省略，请查看生成图片区域]" if k == "data" and isinstance(v, bytes) else clean(v)) for k, v in value.items()}
+        if isinstance(value, list):
+            return [clean(item) for item in value]
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode("ascii")
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        return str(value)
+    return clean(raw)
+
+
 def parse_grounding(
     response: types.GenerateContentResponse,
     *,
@@ -740,6 +818,11 @@ def parse_grounding(
             raw_usage=usage,
         )
         _apply_parsed_grounding(result, parsed)
+        if not parsed.sources and not parsed.supports:
+            result.warning = "返回了 grounding_metadata 对象，但其中没有可展示的来源或引用，不能据此判断回答已接地。"
+        # Keep the SDK's actual optional fields, alongside the teaching view.
+        # This is not a byte-for-byte HTTP response; the SDK parses the payload.
+        result.grounding_metadata_api = _sdk_metadata_snapshot(gm)
         return result
 
     # URL Context returns tool-specific metadata rather than
@@ -805,6 +888,8 @@ def usage_metadata_to_dict(usage: Any) -> dict[str, Any]:
 def grounding_metadata_to_dict(gm: Any) -> dict[str, Any]:
     parsed = parse_grounding_metadata(gm)
     data = parsed.to_raw_dict()
+    if hasattr(gm, "model_dump"):
+        data["sdk_grounding_metadata"] = _sdk_metadata_snapshot(gm)
     if parsed.search_suggestions_html:
         data["search_suggestions_html"] = {
             "present": True,
@@ -1068,6 +1153,7 @@ def grounded_ask(
             config=config,
         )
         result = parse_grounding(response, model=model, mode=mode)
+        result.response_sdk = _sdk_response_snapshot(response)
         last = result
         if result.status == "ok":
             if attempt > 0:
@@ -1237,10 +1323,28 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Full Vertex AI Search data store resource name (Vertex AI only)",
     )
     parser.add_argument("--rag-corpus", default=None, help="Full Vertex RAG corpus resource name")
+    parser.add_argument("--rag-top-k", type=int, default=None, help="Maximum RAG contexts to retrieve")
+    thresholds = parser.add_mutually_exclusive_group()
+    thresholds.add_argument("--rag-distance", type=float, default=None, help="Return contexts with smaller vector distance")
+    thresholds.add_argument("--rag-similarity", type=float, default=None, help="Return contexts with larger vector similarity")
+    parser.add_argument("--rag-metadata-filter", default=None, help="CEL expression for RAG metadata")
+    parser.add_argument("--rag-file-ids", default=None, help="Comma-separated IDs within the selected RAG corpus")
+    parser.add_argument("--rag-hybrid-alpha", type=float, default=None, help="Hybrid search weight 0..1; supported by Weaviate")
+    parser.add_argument("--rag-ranker-type", choices=["rank_service", "llm_ranker"], default=None)
+    parser.add_argument("--rag-ranker-model", default=None)
+    parser.add_argument("--agent-filter", default=None, help="Agent Search filter expression")
+    parser.add_argument("--agent-max-results", type=int, default=None, help="Agent Search result count 1..10")
+    parser.add_argument("--agent-engine", default=None, help="Agent Search engine resource, alternative to data store")
+    parser.add_argument("--search-blocking-confidence", default=None, choices=[e.value for e in types.PhishBlockThreshold if e.name != 'PHISH_BLOCK_THRESHOLD_UNSPECIFIED'])
+    parser.add_argument("--retrieval-language", default=None, help="Retrieval language code, e.g. zh-CN")
+    parser.add_argument("--maps-enable-widget", action="store_true", default=None)
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--max-output-tokens", type=int, default=None)
     parser.add_argument("--external-endpoint", default=None, help="SIMPLE_SEARCH / Elasticsearch endpoint")
     parser.add_argument("--external-api-key", default=None, help="API key for the external search endpoint")
     parser.add_argument("--elastic-index", default=None, help="Elasticsearch index")
     parser.add_argument("--elastic-template", default=None, help="Elasticsearch search template")
+    parser.add_argument("--elastic-num-hits", type=int, default=None, help="Elasticsearch result count")
     parser.add_argument("--partner-provider", choices=["parallel", "exa"], default="parallel")
     parser.add_argument("--partner-api-key", default=None, help="Parallel / Exa API key")
     parser.add_argument("--stream", action="store_true", help="SSE stream to stdout")
@@ -1280,6 +1384,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         "elastic_template": args.elastic_template or None,
         "partner_provider": args.partner_provider,
         "partner_api_key": args.partner_api_key or None,
+        "rag_top_k": args.rag_top_k, "rag_distance": args.rag_distance,
+        "rag_similarity": args.rag_similarity, "rag_metadata_filter": args.rag_metadata_filter,
+        "rag_file_ids": args.rag_file_ids, "rag_hybrid_alpha": args.rag_hybrid_alpha,
+        "rag_ranker_type": args.rag_ranker_type, "rag_ranker_model": args.rag_ranker_model,
+        "agent_filter": args.agent_filter, "agent_max_results": args.agent_max_results,
+        "agent_engine": args.agent_engine, "elastic_num_hits": args.elastic_num_hits,
+        "search_blocking_confidence": args.search_blocking_confidence,
+        "retrieval_language": args.retrieval_language, "maps_enable_widget": args.maps_enable_widget,
+        "temperature": args.temperature, "max_output_tokens": args.max_output_tokens,
     }
     client = build_client()
 

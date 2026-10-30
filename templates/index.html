@@ -400,7 +400,7 @@
       <table class="compare-table"><thead><tr><th>能力 / 数据</th><th>业务价值</th><th>典型应用场景</th><th>前提与官方文档</th></tr></thead><tbody>
         <tr><th>Google Search<br><span class="mono">公开实时 Web</span></th><td>用可核验的实时信息降低新闻、政策、价格与产品事实的过期风险。</td><td>研究助手、客户支持、竞品/市场动态、旅行与购物决策。</td><td>需展示 Search Suggestions 与引用。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
         <tr><th>Image Search<br><span class="mono">真实视觉参考</span></th><td>让生成图参考现实世界外观，降低地标、建筑、商品视觉“想当然”。</td><td>营销创意、目的地预览、商品概念图、活动视觉素材。</td><td>Gemini 3.1 Flash Image 预览能力；必须提供归因。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search#grounding-with-google-image-search" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
-        <tr><th>Google Maps<br><span class="mono">Places（当前 SDK）</span></th><td>用可更新的地点信息提升本地推荐、履约和出行决策的可执行性。</td><td>门店导购、差旅助手、配送规划、周边补给与充电站推荐。</td><td>传入 lat/lng；Routing 需升级至支持该类型的 Enterprise SDK。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-maps" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
+        <tr><th>Google Maps<br><span class="mono">Places</span></th><td>用可更新的地点信息提升本地推荐、履约和出行决策的可执行性。</td><td>门店导购、差旅助手、配送规划、周边补给与充电站推荐。</td><td>可传入 lat/lng；本 Demo 暂未接入 Routing 配置。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-maps" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
         <tr><th>URL Context<br><span class="mono">指定网页 / PDF</span></th><td>把回答锚定到已知的权威材料，避免泛搜索带来的范围漂移。</td><td>合同/公告解读、研报对比、法规页面摘要、技术文档问答。</td><td>URL 须公开可抓取；取回内容计入输入 token。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
         <tr><th>Agent Search<br><span class="mono">企业网站 / 文档</span></th><td>最快把已托管的企业知识转为带来源的问答，减少重复建 RAG 管道。</td><td>员工知识助手、产品手册问答、客户门户、企业站内搜索摘要。</td><td>需 Agent Search data store；最多 10 个来源。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-vertex-ai-search" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
         <tr><th>RAG Engine<br><span class="mono">受管 corpus / 向量检索</span></th><td>在切块、检索、评估和数据治理上获得更细粒度的工程控制。</td><td>高价值知识库、复杂文档集合、需要检索质量调优的专业助手。</td><td>需创建 RAG corpus 并维护语料生命周期。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/ground-responses-using-rag" target="_blank" rel="noopener">官方文档 ↗</a></td></tr>
@@ -474,6 +474,11 @@
         <p class="hint" id="mode-guide-action" style="margin:.55rem 0 0"></p>
         <a class="tag" id="mode-guide-link" target="_blank" rel="noopener">打开官方前置条件 ↗</a>
       </div>
+      <details class="geo-box">
+        <summary>第一次使用？按这个顺序操作</summary>
+        <ol><li>先选择数据来源：网页搜索、地图、指定 URL、Agent Search 或 RAG Engine 等。</li><li>按本模式的前置条件填写资源名或连接配置，再输入问题和支持该工具的模型 ID。</li><li>高级参数先留空，点击“发送”。检查回答、来源列表和引用片段；需要逐项了解字段时展开 SDK 快照。</li><li>对 RAG，可以逐步调整 top_k 或阈值，比较相同问题的来源变化。单个字段为空不等于未检索；有引用也不代表答案一定正确。</li></ol>
+        <p><a href="/api-reference" target="_blank" rel="noopener">打开请求参数与返回字段手册 ↗</a> · <a href="https://github.com/jayson-sheyue/groundingdemo/blob/main/learning_guide.md" target="_blank" rel="noopener">查看完整学习教程 ↗</a></p>
+      </details>
 
       <div id="exclude-box" class="geo-box grounding-config" data-modes="search" style="margin-top:.85rem">
         <h3>排除域名 exclude_domains（仅 Google Search · Vertex）</h3>
@@ -490,13 +495,21 @@
           value="{{ defaults.get('exclude_domains','') }}"
           placeholder="例如：spam.example, low-quality.com, https://www.facebook.com/page"
         />
+        <label for="search_blocking_confidence">钓鱼网站拦截等级（blocking_confidence）</label>
+        <select id="search_blocking_confidence" name="search_blocking_confidence"><option value="">未指定（如有环境配置则使用环境配置）</option>{% for option in ['BLOCK_LOW_AND_ABOVE','BLOCK_MEDIUM_AND_ABOVE','BLOCK_HIGH_AND_ABOVE','BLOCK_HIGHER_AND_ABOVE','BLOCK_VERY_HIGH_AND_ABOVE','BLOCK_ONLY_EXTREMELY_HIGH'] %}<option value="{{ option }}" {% if defaults.get('search_blocking_confidence') == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select>
+        <p class="hint">此项是钓鱼风险拦截阈值，不是检索相关性或答案可信度阈值；实际支持情况取决于服务和模型。</p>
       </div>
 
       <div id="agent-search-box" class="geo-box grounding-config" data-modes="agent_search" style="margin-top:.85rem">
         <h3>Agent Search / Vertex AI Search data store（仅 Agent Search 模式）</h3>
-        <p class="hint" style="margin-top:0">填完整资源名，例如 <code>projects/PROJECT/locations/global/collections/default_collection/dataStores/DATASTORE</code>。此路径使用现有 Vertex 凭证。</p>
+        <p class="hint" style="margin-top:0">Data store 或 engine 完整资源名二选一，例如 <code>projects/PROJECT/locations/global/collections/default_collection/dataStores/DATASTORE</code>。此路径使用现有 Vertex 凭证。</p>
         <label for="agent_search_datastore">Data store 资源名</label>
         <input id="agent_search_datastore" name="agent_search_datastore" type="text" value="{{ defaults.get('agent_search_datastore','') }}" placeholder="projects/.../locations/global/collections/default_collection/dataStores/..." />
+        <label for="agent_engine">或 Engine 资源名</label><input id="agent_engine" name="agent_engine" value="{{ defaults.get('agent_engine','') or '' }}" placeholder="projects/.../collections/.../engines/..." />
+        <details><summary>可选检索参数</summary>
+          <label for="agent_max_results">max_results：每次检索返回数量（1–10）</label><input id="agent_max_results" name="agent_max_results" value="{{ defaults.get('agent_max_results','') or '' }}" placeholder="留空由服务决定" />
+          <label for="agent_filter">filter：Agent Search 过滤表达式</label><input id="agent_filter" name="agent_filter" value="{{ defaults.get('agent_filter','') or '' }}" placeholder="可选；语法取决于数据源" />
+        </details>
       </div>
       <div id="advanced-grounding-box" class="geo-box grounding-config" data-modes="rag_engine,external_search,elasticsearch,parallel_web" style="margin-top:.85rem">
         <h3>企业 Grounding 连接配置</h3>
@@ -507,10 +520,42 @@
           <div class="grounding-field" data-modes="external_search,elasticsearch"><label for="external_api_key">Search / Elastic API Key</label><input id="external_api_key" name="external_api_key" type="password" value="" autocomplete="off" placeholder="仅本次请求使用，不会回填或记录" /></div>
           <div class="grounding-field" data-modes="elasticsearch"><label for="elastic_index">Elasticsearch index</label><input id="elastic_index" name="elastic_index" value="{{ defaults.get('elastic_index','') or '' }}" /></div>
           <div class="grounding-field" data-modes="elasticsearch"><label for="elastic_template">Elasticsearch template</label><input id="elastic_template" name="elastic_template" value="{{ defaults.get('elastic_template','') or '' }}" /></div>
+          <div class="grounding-field" data-modes="elasticsearch"><label for="elastic_num_hits">num_hits：检索片段数量（可选）</label><input id="elastic_num_hits" name="elastic_num_hits" value="{{ defaults.get('elastic_num_hits','') or '' }}" placeholder="例如 10" /></div>
           <div class="grounding-field" data-modes="parallel_web"><label for="partner_provider">伙伴 Web 引擎</label><select id="partner_provider" name="partner_provider"><option value="parallel">Parallel</option><option value="exa">Exa</option></select></div>
           <div class="grounding-field" data-modes="parallel_web"><label for="partner_api_key">Parallel / Exa API Key</label><input id="partner_api_key" name="partner_api_key" type="password" value="" autocomplete="off" placeholder="仅本次请求使用，不会回填或记录" /></div>
         </div>
+        <div class="grounding-field" data-modes="rag_engine">
+          <details>
+            <summary>RAG 检索高级参数（每次请求独立生效）</summary>
+            <p class="hint">所有字段均可留空：留空表示不由本 Demo 显式设置，具体行为由服务和数据源决定。距离越小通常越相近；相似度越大通常越相近。阈值不能判断回答是否正确。</p>
+            <div class="row-3">
+              <div><label for="rag_top_k">top_k：片段数量上限</label><input id="rag_top_k" name="rag_top_k" value="{{ defaults.get('rag_top_k','') or '' }}" placeholder="例如 10" /></div>
+              <div><label for="rag_distance">vector_distance_threshold：距离上限</label><input id="rag_distance" name="rag_distance" value="{{ defaults.get('rag_distance','') or '' }}" placeholder="例如 0.5；小于此值" /></div>
+              <div><label for="rag_similarity">vector_similarity_threshold：相似度下限</label><input id="rag_similarity" name="rag_similarity" value="{{ defaults.get('rag_similarity','') or '' }}" placeholder="与距离阈值二选一" /></div>
+            </div>
+            <label for="rag_metadata_filter">metadata_filter：CEL 元数据过滤</label><input id="rag_metadata_filter" name="rag_metadata_filter" value="{{ defaults.get('rag_metadata_filter','') or '' }}" placeholder='例如 author == "Alice"' />
+            <label for="rag_file_ids">rag_file_ids：限定文件 ID（逗号分隔，同一 corpus）</label><input id="rag_file_ids" name="rag_file_ids" value="{{ defaults.get('rag_file_ids','') or '' }}" placeholder="留空检索整个 corpus" />
+            <div class="row-3">
+              <div><label for="rag_hybrid_alpha">hybrid alpha（0–1）</label><input id="rag_hybrid_alpha" name="rag_hybrid_alpha" value="{{ defaults.get('rag_hybrid_alpha','') or '' }}" placeholder="仅支持 Weaviate" /></div>
+              <div><label for="rag_ranker_type">重排方式</label><select id="rag_ranker_type" name="rag_ranker_type"><option value="">不设置</option><option value="rank_service" {% if defaults.get('rag_ranker_type') == 'rank_service' %}selected{% endif %}>Rank Service</option><option value="llm_ranker" {% if defaults.get('rag_ranker_type') == 'llm_ranker' %}selected{% endif %}>LLM Ranker</option></select></div>
+              <div><label for="rag_ranker_model">重排模型名</label><input id="rag_ranker_model" name="rag_ranker_model" value="{{ defaults.get('rag_ranker_model','') or '' }}" placeholder="例如 semantic-ranker-512@latest" /></div>
+            </div>
+            <p class="hint">混合检索目前仅适用于支持该能力的 Weaviate 后端；重排能力、模型、区域和费用以项目实际配置为准。<a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/rag-api" target="_blank" rel="noopener">查看官方字段说明</a></p>
+          </details>
+        </div>
       </div>
+
+      <details class="geo-box">
+        <summary>通用请求参数与学习说明</summary>
+        <p class="hint">选择模式相当于选择数据源。问题、模型、工具和以下可选参数组成一次请求；留空表示不额外设置。服务是否支持由模型和 Grounding 模式决定。</p>
+        <div class="row-3">
+          <div><label for="temperature">temperature：生成随机性（0–2）</label><input id="temperature" name="temperature" value="{{ defaults.get('temperature','') or '' }}" placeholder="留空使用本 Demo 的 1.0" /></div>
+          <div><label for="max_output_tokens">max_output_tokens：生成 token 上限</label><input id="max_output_tokens" name="max_output_tokens" value="{{ defaults.get('max_output_tokens','') or '' }}" placeholder="留空使用服务默认" /></div>
+          <div><label for="retrieval_language">retrieval language_code：检索语言</label><input id="retrieval_language" name="retrieval_language" value="{{ defaults.get('retrieval_language','') or '' }}" placeholder="例如 zh-CN；支持情况取决于工具" /></div>
+        </div>
+        <label class="grounding-field" data-modes="maps"><input type="checkbox" name="maps_enable_widget" value="on" {% if defaults.get('maps_enable_widget') %}checked{% endif %} /> 请求 Maps widget 上下文令牌（SDK 标记为弃用，可能不再生效）</label>
+        <p class="hint">Google Search 的排除域名、Maps 的坐标、Agent Search 的过滤器及各企业数据源连接项按模式显示。API Key 只用于本次请求，不会回填。并非所有 SDK 字段都适用于所有模型；不支持时 API 会返回错误。</p>
+      </details>
 
       <div class="row">
         <div>
@@ -597,6 +642,7 @@
           <ul class="clean sources" id="stream-sources"></ul>
           <h3>groundingMetadata 字段</h3>
           <pre class="verify" id="stream-field-presence" style="font-size:.8rem"></pre>
+          <details><summary>SDK 返回的 groundingMetadata（最后一个包含元数据的流事件）</summary><p class="hint">流式事件可能分批返回元数据；此处展示最后一次收到的对象，不保证包含前面事件中的全部内容。</p><pre class="verify" id="stream-sdk-metadata"></pre></details>
         </div>
         <div class="stream-meta" id="stream-meta"></div>
       </div>
@@ -683,6 +729,7 @@
           {% if view.elapsed_ms is not none %}<span>耗时：<span class="mono">{{ view.elapsed_ms }} ms</span></span>{% endif %}
           {% if view.warning %}<span>{{ view.warning }}</span>{% endif %}
         </div>
+        <p class="hint">状态表示本 Demo 对响应的处理结果；“ok”不代表每句话都有来源，也不保证事实正确。</p>
 
         <div class="insight-grid">
           <div class="insight mode-side{% if view.demo_kind == 'image_gen' %} image-side{% endif %}">
@@ -905,9 +952,22 @@
         {% endif %}
 
         <h3>groundingMetadata 结构化快照</h3>
+        <p class="hint">这是 Demo 整理后的教学视图；有值不保证回答正确，单个字段为空也不等于未检索。</p>
         <pre class="verify">{{ view.grounding_metadata_raw | tojson(indent=2) }}</pre>
+        {% if view.grounding_metadata_api %}
+        <details><summary>查看 SDK 返回的 groundingMetadata 全字段</summary>
+          <p class="hint">保留 SDK 能识别且非空的原始字段；这是 SDK 解析后的对象，不是原始 HTTP 报文。字段随工具、模型和 SDK 版本变化。</p>
+          <pre class="verify">{{ view.grounding_metadata_api | tojson(indent=2) }}</pre>
+        </details>
+        {% endif %}
         {% endif %}
 
+        {% if view.response_sdk %}
+          <details><summary>查看 SDK 响应对象（含候选、结束原因与用量）</summary>
+            <p class="hint">展示 SDK 解析后的非空字段，而非原始 HTTP 报文；HTTP 响应头和内嵌二进制媒体已省略。这里可能包含问题对应的回答和来源，请谨慎分享。</p>
+            <pre class="verify">{{ view.response_sdk | tojson(indent=2) }}</pre>
+          </details>
+        {% endif %}
         {% if view.usage %}
           <h2>Token 用量（usage_metadata · 实际）</h2>
           <pre class="verify">{{ view.usage | tojson(indent=2) }}</pre>
@@ -978,6 +1038,7 @@
       const streamRetrievalQueries = document.getElementById("stream-retrieval-queries");
       const streamSources = document.getElementById("stream-sources");
       const streamFieldPresence = document.getElementById("stream-field-presence");
+      const streamSdkMetadata = document.getElementById("stream-sdk-metadata");
       const streamHint = document.getElementById("stream-hint");
       const resultSection = document.getElementById("result-section");
       const tokenEstimate = document.getElementById("token-estimate");
@@ -1196,7 +1257,7 @@
           question: "请根据已选的 Agent Search 数据源，总结最关键的结论并列出依据。",
           qLabel: "问题（Vertex 私域数据）",
           qPlaceholder: "提问将从下方的 Agent Search data store 检索",
-          modelHint: "Vertex AI；需要完整的 Vertex AI Search data store 资源名",
+          modelHint: "Vertex AI；需要完整的 data store 或 engine 资源名",
         },
         rag_engine: { model: "gemini-2.5-flash", question: "请根据已配置的 RAG corpus 总结核心结论并列出依据。", qLabel: "问题（受管 RAG 语料库）", qPlaceholder: "将从下方 RAG corpus 检索", modelHint: "Vertex AI；需完整 RAG corpus 资源名" },
         external_search: { model: "gemini-2.5-flash", question: "请根据企业搜索服务返回的资料回答，并列出依据。", qLabel: "问题（自定义 Search API）", qPlaceholder: "将调用下方 SIMPLE_SEARCH endpoint", modelHint: "Vertex AI；需 endpoint 与本次 API Key" },
@@ -1208,9 +1269,9 @@
       const MODE_GUIDES = {
         search: { title:"Google Search：公开实时事实", value:"业务价值：让新闻、政策、价格和产品事实可追溯；结果必须向终端用户展示引用与 Search Suggestions。", setup:"前置条件：启用 Enterprise Agent Platform / Vertex AI 并使用项目凭证；不是 API Key 模式。", action:"操作：直接提问；如要排除低质量站点，可在下方填 exclude_domains。", link:ENTERPRISE_DOCS+"grounding-with-google-search" },
         image_search: { title:"Image Search：真实视觉参考后生图", value:"业务价值：让地标、建筑、商品等画面参考真实世界，减少视觉幻觉。主产出是生成图，不是图片检索列表。", setup:"前置条件：需有资格使用 Gemini 3.1 Flash Image 预览能力；输出须保留模型返回的归因/来源。", action:"操作：描述要生成的画面；此模式不支持流式按钮，等待完整 inline 图片。", link:ENTERPRISE_DOCS+"grounding-with-google-search#grounding-with-google-image-search" },
-        maps: { title:"Google Maps：地点与本地决策", value:"业务价值：利用更新的地点、商户和地理信息，提升导购、履约和周边推荐的可执行性。", setup:"前置条件：使用 Vertex 项目凭证；“附近”问题建议提供 lat/lng。当前安装的 SDK 使用兼容的 Places 默认能力；Routing 需升级 SDK 后另行验证。", action:"操作：可用城市预设或“使用我的位置”；浏览器授权不等于设备一定能提供坐标。", link:ENTERPRISE_DOCS+"grounding-with-google-maps" },
+        maps: { title:"Google Maps：地点与本地决策", value:"业务价值：利用更新的地点、商户和地理信息，提升导购、履约和周边推荐的可执行性。", setup:"前置条件：使用 Vertex 项目凭证；“附近”问题建议提供 lat/lng。本 Demo 使用默认 Places，暂未接入 Routing。", action:"操作：可用城市预设或“使用我的位置”；浏览器授权不等于设备一定能提供坐标。", link:ENTERPRISE_DOCS+"grounding-with-google-maps" },
         url_context: { title:"URL Context：指定权威页面或 PDF", value:"业务价值：将答案锚定到已知材料，减少泛 Web 检索的范围漂移。", setup:"前置条件：URL/PDF 必须公开且可抓取；取回内容会计入输入 token，受页面访问限制时可能失败。", action:"操作：把一个或多个 URL 写在问题中，并说明要总结、对比或抽取什么。", link:"https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/url-context" },
-        agent_search: { title:"Agent Search：已托管企业网站/文档", value:"业务价值：复用 Agent Search / Vertex AI Search 中已有的企业内容，快速提供带来源问答。", setup:"控制台准备：创建 data store、导入网站或文档、确认调用身份拥有 Discovery Engine 检索权限；本 demo 需要完整 data store 资源名。", action:"操作：先在下方填写 projects/.../dataStores/...；没有 data store 时此模式不能运行。", link:ENTERPRISE_DOCS+"grounding-with-vertex-ai-search" },
+        agent_search: { title:"Agent Search：已托管企业网站/文档", value:"业务价值：复用 Agent Search / Vertex AI Search 中已有的企业内容，快速提供带来源问答。", setup:"控制台准备：创建数据源或搜索引擎、导入内容，并确认调用身份拥有检索权限。", action:"操作：在下方填写完整 data store 或 engine 资源名，二选一。", link:ENTERPRISE_DOCS+"grounding-with-vertex-ai-search" },
         rag_engine: { title:"RAG Engine：受管语料库与向量检索", value:"业务价值：适合需要切块、检索调优、评估和数据生命周期治理的复杂知识库。", setup:"控制台/API 准备：创建 RAG corpus 并导入、解析语料；调用身份必须有对应 Vertex AI 权限。", action:"操作：在下方填写完整 ragCorpora 资源名；没有 corpus 或尚未导入内容时不能运行。", link:ENTERPRISE_DOCS+"ground-responses-using-rag" },
         external_search: { title:"自定义 Search API：复用现有搜索服务", value:"业务价值：不迁移 CRM、工单或行业库，保留既有索引和权限体系。", setup:"集成准备：endpoint 必须符合 SIMPLE_SEARCH 协议，并可由运行服务网络访问；生产环境将密钥放入 Secret Manager，勿写入前端。", action:"操作：填写 endpoint 与仅本次使用的 API Key；请求数据会发送至你的搜索服务。", link:ENTERPRISE_DOCS+"grounding-with-your-search-api" },
         elasticsearch: { title:"Elasticsearch：连接既有 Elastic 索引", value:"业务价值：在现有 Elastic 搜索资产上增加生成式问答和来源，而不重建索引。", setup:"集成准备：Elastic endpoint 需对运行环境网络可达；准备 ApiKey、index 与 search template；生产环境使用 Secret Manager。", action:"操作：四项配置缺一不可；API Key 不回填、不写入运行记录。", link:ENTERPRISE_DOCS+"grounding-with-elasticsearch" },
@@ -1300,6 +1361,7 @@
         streamRetrievalQueries.innerHTML = "";
         streamSources.innerHTML = "";
         if (streamFieldPresence) streamFieldPresence.textContent = "";
+        if (streamSdkMetadata) streamSdkMetadata.textContent = "";
         if (!grounding) {
           streamGrounding.hidden = true;
           return;
@@ -1369,6 +1431,7 @@
         if (streamFieldPresence && hasPresence) {
           streamFieldPresence.textContent = JSON.stringify(presence, null, 2);
         }
+        if (streamSdkMetadata) streamSdkMetadata.textContent = JSON.stringify(grounding.sdk_grounding_metadata || {}, null, 2);
       }
 
       function finalizeStreamAnswer(text, grounding) {

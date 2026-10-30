@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import html
+import math
 import os
 import time
 from collections import deque
@@ -14,6 +15,8 @@ from threading import Lock
 from typing import Any, Optional
 
 from flask import Flask, Response, jsonify, render_template, request, stream_with_context
+import google.genai
+from google.genai import types as genai_types
 from markupsafe import Markup
 
 from demo_grounded_search import (
@@ -147,6 +150,8 @@ def result_to_view(
         "source_flagging_uris": result.source_flagging_uris,
         "grounding_field_presence": result.grounding_field_presence,
         "grounding_metadata_raw": result.grounding_metadata_raw,
+        "grounding_metadata_api": result.grounding_metadata_api,
+        "response_sdk": result.response_sdk,
         "verify_text": verify_text,
         "usage": result.raw_usage,
         "elapsed_ms": elapsed_ms,
@@ -246,9 +251,13 @@ def _parse_ask_form() -> tuple[dict[str, Any], Optional[str]]:
     agent_search_datastore = (request.form.get("agent_search_datastore") or "").strip()
     grounding_options = {key: (request.form.get(key) or "").strip() or None for key in (
         "rag_corpus", "external_endpoint", "external_api_key", "elastic_index",
-        "elastic_template", "partner_api_key",
-        "partner_provider",
+        "elastic_template", "partner_api_key", "partner_provider", "rag_top_k",
+        "rag_distance", "rag_similarity", "rag_metadata_filter", "rag_file_ids",
+        "rag_hybrid_alpha", "rag_ranker_type", "rag_ranker_model", "agent_filter",
+        "agent_max_results", "agent_engine", "elastic_num_hits", "search_blocking_confidence",
+        "retrieval_language", "temperature", "max_output_tokens",
     )}
+    grounding_options["maps_enable_widget"] = True if mode == "maps" and request.form.get("maps_enable_widget") == "on" else None
     resolve_redirects = request.form.get("resolve_redirects") == "on"
 
     # Never put credentials back into HTML after a POST.  ``_grounding_options``
@@ -276,6 +285,44 @@ def _parse_ask_form() -> tuple[dict[str, Any], Optional[str]]:
 
     if not question:
         return defaults, "请输入问题。"
+
+    # Only validate/pass controls relevant to this mode. Hidden values must not
+    # unexpectedly change a different tool when the user switches modes.
+    numeric_fields = {
+        "temperature": (float, 0, 2), "max_output_tokens": (int, 1, None),
+    }
+    if mode == "rag_engine":
+        numeric_fields.update({"rag_top_k": (int, 1, None), "rag_distance": (float, None, None),
+                               "rag_similarity": (float, None, None), "rag_hybrid_alpha": (float, 0, 1)})
+    if mode == "agent_search":
+        numeric_fields["agent_max_results"] = (int, 1, 10)
+    if mode == "elasticsearch":
+        numeric_fields["elastic_num_hits"] = (int, 1, None)
+    for key, (converter, minimum, maximum) in numeric_fields.items():
+        raw = grounding_options.get(key)
+        if raw is None:
+            continue
+        try:
+            value = converter(raw)
+            if not math.isfinite(value) or (minimum is not None and value < minimum) or (maximum is not None and value > maximum):
+                raise ValueError
+        except (ValueError, TypeError):
+            return defaults, f"参数 {key} 的数值无效，请检查输入和取值范围。"
+        grounding_options[key] = value
+    if mode == "rag_engine":
+        if grounding_options["rag_distance"] is not None and grounding_options["rag_similarity"] is not None:
+            return defaults, "距离阈值和相似度阈值只能填写一个。"
+        if bool(grounding_options["rag_ranker_type"]) != bool(grounding_options["rag_ranker_model"]):
+            return defaults, "重排类型和重排模型名必须同时填写。"
+    else:
+        for key in ("rag_top_k", "rag_distance", "rag_similarity", "rag_metadata_filter", "rag_file_ids", "rag_hybrid_alpha", "rag_ranker_type", "rag_ranker_model"):
+            grounding_options[key] = None
+    if mode != "agent_search":
+        grounding_options["agent_filter"] = grounding_options["agent_max_results"] = grounding_options["agent_engine"] = None
+    if mode != "elasticsearch":
+        grounding_options["elastic_num_hits"] = None
+    if mode != "search":
+        grounding_options["search_blocking_confidence"] = None
 
     lat_lng = None
     geo_meta: dict[str, Any] = {"enabled": False, "label": geo_label or None}
@@ -330,6 +377,30 @@ def _has_verifiable_retrieved_context(sources: list[dict[str, Any]]) -> bool:
 @app.get("/")
 def index():
     return _render()
+
+
+@app.get("/api-reference")
+def api_reference():
+    """Reference reflects installed SDK types; not a promise of service support."""
+    names = ["GenerateContentConfig", "Tool", "GoogleSearch", "SearchTypes", "GoogleMaps",
+             "GoogleMapsGroundingTypes", "UrlContext", "Retrieval", "RetrievalConfig", "ToolConfig",
+             "VertexAISearch", "VertexAISearchDataStoreSpec", "VertexRagStore", "VertexRagStoreRagResource",
+             "RagRetrievalConfig", "RagRetrievalConfigFilter", "RagRetrievalConfigHybridSearch",
+             "RagRetrievalConfigRanking", "RagRetrievalConfigRankingRankService", "RagRetrievalConfigRankingLlmRanker",
+             "ExternalApi", "ExternalApiElasticSearchParams", "ExternalApiSimpleSearchParams", "EnterpriseWebSearch", "ToolParallelAiSearch", "ToolExaAiSearch",
+             "GenerateContentResponse", "Candidate", "GenerateContentResponseUsageMetadata", "GroundingMetadata",
+             "GroundingChunk", "GroundingChunkWeb", "GroundingChunkImage", "GroundingChunkMaps",
+             "GroundingChunkRetrievedContext", "GroundingChunkMapsPlaceAnswerSources", "GroundingChunkMapsRoute",
+             "RagChunk", "RagChunkPageSpan", "Segment", "GroundingSupport", "RetrievalMetadata", "SearchEntryPoint", "UrlContextMetadata", "UrlMetadata"]
+    entries = []
+    for name in names:
+        cls = getattr(genai_types, name, None)
+        if cls is not None and hasattr(cls, "model_fields"):
+            entries.append({"name": name, "fields": [
+                {"name": field_name, "alias": f.alias, "description": f.description or "SDK 未提供字段说明。"}
+                for field_name, f in cls.model_fields.items()
+            ]})
+    return render_template("api_reference.html", entries=entries, sdk_version=google.genai.__version__)
 
 
 @app.post("/history/clear")
