@@ -39,6 +39,9 @@ from gcs_upload import upload_bytes_to_gcs
 from redirect_resolve import enrich_sources, env_resolve_redirects_default
 
 app = Flask(__name__)
+# Jinja's tojson uses Flask's JSON provider. Preserve readable Unicode while
+# retaining its HTML-safe escaping for data embedded in the page.
+app.json.ensure_ascii = False
 
 _HISTORY_LOCK = Lock()
 _RUN_HISTORY: deque[dict[str, Any]] = deque(maxlen=30)
@@ -64,11 +67,20 @@ def annotate_answer_html(text: str, supports: list[GroundedSpan]) -> str:
         return html.escape(text).replace("\n", "<br>\n")
 
     intervals: list[tuple[int, int, GroundedSpan]] = []
+    encoded = text.encode("utf-8")
     for span in supports:
-        if span.start_index is None or span.end_index is None:
-            continue
-        start, end = int(span.start_index), int(span.end_index)
-        if start < 0 or end <= start or end > len(text):
+        start = end = -1
+        try:
+            # Grounding segment indices are UTF-8 byte offsets, not Python
+            # character offsets. A missing start_index means zero.
+            byte_start = int(span.start_index or 0)
+            byte_end = int(span.end_index) if span.end_index is not None else -1
+            if 0 <= byte_start < byte_end <= len(encoded):
+                start = len(encoded[:byte_start].decode("utf-8"))
+                end = start + len(encoded[byte_start:byte_end].decode("utf-8"))
+        except (ValueError, TypeError, UnicodeDecodeError):
+            pass
+        if start < 0 or end <= start or (span.text and text[start:end] != span.text):
             if span.text and span.text in text:
                 start = text.index(span.text)
                 end = start + len(span.text)
@@ -481,11 +493,10 @@ def ask_stream():
     grounding_options = defaults.get("_grounding_options") or {}
     resolve_redirects = defaults.get("resolve_redirects", False)
 
-    client = get_client()
-
     def generate():
         started = time.perf_counter()
         try:
+            client = get_client()
             for ev in grounded_ask_stream(
                 client,
                 question,

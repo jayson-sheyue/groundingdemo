@@ -1,0 +1,18 @@
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert');
+const template = fs.readFileSync('templates/index.html', 'utf8');
+const start = template.indexOf('      function escapeHtml(text) {');
+const end = template.indexOf('      const modelInput =', start);
+assert(start >= 0 && end > start);
+const context = {TextEncoder};
+vm.createContext(context);
+vm.runInContext(template.slice(start, end), context);
+const text = '中文😀 Gemini 回答';
+const startByte = Buffer.byteLength('中文😀 ');
+const annotated = context.annotateAnswerHtml(text, [{text: 'Gemini', start_index: startByte, end_index: startByte + 6, chunk_indices: [2]}]);
+assert(annotated.includes('中文😀 <mark'));
+assert(annotated.includes('>Gemini<sup'));
+assert(context.annotateAnswerHtml(text, [{text: '中文', end_index: 6, chunk_indices: [0]}]).includes('>中文<sup'));
+assert(context.annotateAnswerHtml('<script>正文</script>', [{text: '正文', start_index: 2, end_index: 4, chunk_indices: [1]}]).includes('&lt;script&gt;'));
+console.log('Streaming citation tests passed');

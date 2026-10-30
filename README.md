@@ -32,6 +32,8 @@
 
 **响应字段**：`webSearchQueries` / `imageSearchQueries` / `retrievalQueries`、`groundingChunks`（web / image / maps / retrievedContext）、`groundingSupports`、`searchEntryPoint`、`retrievalMetadata` 等 — 字段表见 [learning_guide §5](./learning_guide.md#5-读响应时看什么)，详细说明见 [§5.6](./learning_guide.md#56-groundingmetadata-字段详解)。
 
+结果中的 JSON 快照直接显示中文，长字段在容器内换行；回答高亮按 API 的 UTF-8 字节偏移定位，支持中英文和 emoji。流式请求未收到完成事件时会提示失败，保留已接收文本。
+
 ---
 
 ## 模式对比（必读）

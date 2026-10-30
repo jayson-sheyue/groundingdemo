@@ -201,10 +201,13 @@
     .support-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
     .support-table th, .support-table td {
       border-bottom: 1px solid var(--line); text-align: left; padding: .55rem .35rem; vertical-align: top;
+      overflow-wrap: anywhere;
     }
     .support-table th { color: var(--muted); }
     .verify {
-      white-space: pre-wrap; background: #f5f5f4; border-radius: 12px; padding: .9rem 1rem;
+      white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+      max-width: 100%; box-sizing: border-box; overflow-x: auto;
+      background: #f5f5f4; border-radius: 12px; padding: .9rem 1rem;
       font-family: "IBM Plex Mono", monospace; font-size: .84rem; line-height: 1.5;
     }
     .history-empty { color: var(--muted); margin: 0; }
@@ -1098,20 +1101,22 @@
           return escapeHtml(text).replace(/\n/g, "<br>\n");
         }
         const intervals = [];
+        // Grounding offsets count UTF-8 bytes. JavaScript slice uses UTF-16
+        // code units, so build a boundary map without splitting emoji.
+        const byteToOffset = new Map([[0, 0]]);
+        const encoder = new TextEncoder();
+        let byteOffset = 0;
+        let stringOffset = 0;
+        for (const character of text) {
+          byteOffset += encoder.encode(character).length;
+          stringOffset += character.length;
+          byteToOffset.set(byteOffset, stringOffset);
+        }
         supports.forEach(function (span) {
-          let start = span.start_index;
-          let end = span.end_index;
-          if (start == null || end == null) {
-            if (span.text && text.indexOf(span.text) >= 0) {
-              start = text.indexOf(span.text);
-              end = start + span.text.length;
-            } else {
-              return;
-            }
-          }
-          start = Number(start);
-          end = Number(end);
-          if (start < 0 || end <= start || end > text.length) {
+          let start = byteToOffset.get(Number(span.start_index == null ? 0 : span.start_index));
+          let end = span.end_index == null ? undefined : byteToOffset.get(Number(span.end_index));
+          if (start == null || end == null || end <= start ||
+              (span.text && text.slice(start, end) !== span.text)) {
             if (span.text && text.indexOf(span.text) >= 0) {
               start = text.indexOf(span.text);
               end = start + span.text.length;
@@ -1411,6 +1416,7 @@
         hint.textContent = "SSE 流式接收中…";
         let streamText = "";
         let lastGrounding = null;
+        let streamSucceeded = false;
         try {
           await ensureAttachmentsReady();
           const resp = await fetch("/ask/stream", { method: "POST", body: formDataFromForm() });
@@ -1450,6 +1456,7 @@
               } else if (eventName === "usage") {
                 appendStreamMeta("[usage 实际] " + JSON.stringify(payload));
               } else if (eventName === "done") {
+                streamSucceeded = true;
                 const finalText = payload.text || streamText;
                 const grounding = payload.grounding || lastGrounding;
                 finalizeStreamAnswer(finalText, grounding);
@@ -1458,22 +1465,23 @@
               } else if (eventName === "elapsed") {
                 appendStreamMeta("[elapsed] " + payload.elapsed_ms + " ms");
               } else if (eventName === "error") {
-                streamLive.classList.remove("is-streaming");
-                appendStreamMeta("[error] " + payload.message);
+                throw new Error(payload.message || "流式请求失败");
               }
             }
           }
           if (streamLive.classList.contains("is-streaming") && streamText) {
             finalizeStreamAnswer(streamText, lastGrounding);
           }
+          if (!streamSucceeded) throw new Error("连接已结束，但没有收到完成事件，请重试。");
         } catch (err) {
           streamLive.classList.remove("is-streaming");
           appendStreamMeta("[error] " + (err.message || String(err)));
+          streamHint.textContent = "流式请求失败，请检查错误信息后重试。";
         } finally {
           setLoading(false);
           streamBtn.disabled = false;
           countBtn.disabled = false;
-          hint.textContent = "流式完成。";
+          hint.textContent = streamSucceeded ? "流式完成。" : "流式请求未完成，请重试。";
         }
       });
 
