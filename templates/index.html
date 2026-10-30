@@ -447,7 +447,7 @@
         <p class="hint" style="margin:0">
           适合「什么时候 / 多少钱 / 谁赢了」等<strong>文字事实题</strong>。
           结果区展示：引用高亮、<code>webSearchQueries</code>、可点 <code>web.uri</code>。
-          模型推荐 <code>gemini-2.5-flash</code>。
+          可在下方输入支持该工具的模型 ID。
         </p>
       </div>
 
@@ -521,7 +521,7 @@
         <div>
           <label>&nbsp;</label>
           <div class="checks" style="margin:.55rem 0 0">
-            <label><input type="checkbox" name="retry" value="on" {% if defaults.get('retry', true) %}checked{% endif %} /> 缺 metadata 时重试</label>
+            <label><input type="checkbox" name="retry" value="on" {% if defaults.get('retry', true) %}checked{% endif %} /> 缺少元数据或有效结果时再尝试一次（仅普通发送，可能增加耗时和费用）</label>
           </div>
         </div>
       </div>
@@ -1168,7 +1168,7 @@
           question: "美国下一次可见的日全食是什么时候？",
           qLabel: "问题（文字事实）",
           qPlaceholder: "例如：美国下一次日全食是什么时候？",
-          modelHint: "推荐 gemini-2.5-flash / 2.5-pro",
+          modelHint: "可输入支持当前工具的模型 ID；可用性取决于项目和区域。",
         },
         image_search: {
           model: "gemini-3.1-flash-image",
@@ -1182,7 +1182,7 @@
           question: "这附近有什么口碑好的咖啡馆？",
           qLabel: "问题（本地 / 地点）",
           qPlaceholder: "例如：这附近有什么咖啡馆？",
-          modelHint: "推荐 gemini-2.5-flash",
+          modelHint: "可输入支持当前工具的模型 ID；可用性取决于项目和区域。",
         },
         url_context: {
           model: "gemini-2.5-flash",

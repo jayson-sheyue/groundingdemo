@@ -1,8 +1,8 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from flask import render_template_string
-from demo_grounded_search import GroundedSpan
+from demo_grounded_search import GroundedResult, GroundedSpan, grounded_ask
 from web_app import app, annotate_answer_html
 
 
@@ -42,6 +42,18 @@ class DisplayTests(unittest.TestCase):
         response = app.test_client().get('/')
         self.assertEqual(response.status_code, 200)
         self.assertIn('overflow-wrap: anywhere', response.get_data(as_text=True))
+
+    def test_rag_retry_mentions_the_configured_tool(self):
+        client = MagicMock()
+        results = [GroundedResult(status='ungrounded'), GroundedResult(status='ok')]
+        with patch('demo_grounded_search._build_config', return_value=object()), \
+             patch('demo_grounded_search.build_user_contents', side_effect=lambda prompt, **kwargs: prompt), \
+             patch('demo_grounded_search.parse_grounding', side_effect=results):
+            grounded_ask(client, '问题', model='test', mode='rag_engine', max_retries=1)
+        self.assertEqual(client.models.generate_content.call_count, 2)
+        retry_prompt = client.models.generate_content.call_args_list[1].kwargs['contents']
+        self.assertIn('RAG Engine', retry_prompt)
+        self.assertNotIn('Google 搜索', retry_prompt)
 
 
 if __name__ == '__main__':

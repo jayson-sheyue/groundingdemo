@@ -1045,6 +1045,12 @@ def grounded_ask(
         else:
             tool_name = {
                 "url_context": "URL Context",
+                "agent_search": "Agent Search",
+                "rag_engine": "RAG Engine",
+                "external_search": "自定义搜索",
+                "elasticsearch": "Elasticsearch",
+                "parallel_web": "伙伴 Web 搜索",
+                "enterprise_web": "Enterprise Web",
             }.get(mode, "Google 搜索")
             prompts.append(
                 question
